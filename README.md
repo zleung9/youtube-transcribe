@@ -20,3 +20,32 @@ A Python application that automatically monitors a specified YouTube channel for
 ```bash
 uv pip install .
 ```
+
+## Configuration
+Update `config.py` with your settings:
+- `YOUTUBE_API_KEY`: Your YouTube Data API key
+- `CHANNEL_ID`: The YouTube channel ID to monitor
+- `DOWNLOAD_PATH`: Directory for downloaded videos (default: './downloads/')
+
+## Usage
+Run the script:
+```bash
+python main.py
+```
+
+The script will:
+1. Check for new videos in the specified channel
+2. Download any new videos found
+3. Store downloaded video IDs in `downloaded_videos.txt`
+
+## Project Structure
+- `main.py`: Main script orchestrating the workflow
+- `downloader.py`: Handles YouTube API interaction and video downloads
+- `config.py`: Configuration settings
+- `downloaded_videos.txt`: Tracks previously downloaded videos
+- `pyproject.toml`: Project dependencies and metadata
+
+## Dependencies
+As specified in pyproject.toml:
+- google-api-python-client >= 2.158.0
+- yt-dlp >= 2024.12.23
