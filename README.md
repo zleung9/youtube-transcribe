@@ -1,51 +1,90 @@
-# YouTube Video Downloader and Transcriber
+# YouTube Video Transcriber
 
-A Python application that automatically monitors a specified YouTube channel for new uploads, downloads the latest video, and generates transcriptions.
+An automated tool that downloads YouTube videos, transcribes them using OpenAI's Whisper, and can generate summaries using OpenAI's GPT API.
 
 ## Features
-- Monitors a YouTube channel using the YouTube Data API
-- Downloads new videos automatically using yt-dlp
-- Tracks downloaded videos to prevent duplicates
-- Generates SRT subtitle files using Whisper (transcription feature)
+
+- Automatically downloads new videos from a specified YouTube channel
+- Transcribes videos to SRT format using Whisper
+- Generates summaries or custom analysis using OpenAI's GPT
+- Supports multiple languages (with automatic language detection)
+- CPU and GPU (Apple Silicon) support for transcription
 
 ## Prerequisites
+
 - Python 3.10 or higher
-- YouTube API key
-- Channel ID of the YouTube channel to monitor
-- uv (Python package installer)
+- OpenAI API key
+- YouTube Data API key
+- ffmpeg installed on your system
 
 ## Installation
-1. Clone this repository
-2. Install dependencies using uv:
+
+1. Clone this repository:
 ```bash
-uv pip install .
+git clone [your-repo-url]
+cd youtube-transcribe
 ```
 
-## Configuration
-Update `config.py` with your settings:
-- `YOUTUBE_API_KEY`: Your YouTube Data API key
-- `CHANNEL_ID`: The YouTube channel ID to monitor
-- `DOWNLOAD_PATH`: Directory for downloaded videos (default: './downloads/')
+2. Install the required packages:
+```bash
+pip install .
+```
+
+3. Set up configuration:
+```bash
+cp config.json.template config.json
+```
+
+4. Edit `config.json` with your settings:
+```json
+{
+    "youtube": {
+        "api_key": "YOUR_YOUTUBE_API_KEY",
+        "channel_id": "YOUR_CHANNEL_ID"
+    },
+    "openai": {
+        "api_key": "YOUR_OPENAI_API_KEY"
+    },
+    "whisper": {
+        "model": "base",
+        "device": "cpu"
+    },
+    "paths": {
+        "downloads": "./downloads",
+        "transcripts": "./transcripts"
+    }
+}
+```
 
 ## Usage
-Run the script:
+
+Run the main script:
 ```bash
 python main.py
 ```
 
-The script will:
-1. Check for new videos in the specified channel
-2. Download any new videos found
-3. Store downloaded video IDs in `downloaded_videos.txt`
+This will:
+1. Check for new videos on the specified YouTube channel
+2. Download any new videos
+3. Generate transcriptions in SRT format
+4. Optionally create summaries using OpenAI GPT
 
-## Project Structure
-- `main.py`: Main script orchestrating the workflow
-- `downloader.py`: Handles YouTube API interaction and video downloads
-- `config.py`: Configuration settings
-- `downloaded_videos.txt`: Tracks previously downloaded videos
-- `pyproject.toml`: Project dependencies and metadata
 
-## Dependencies
-As specified in pyproject.toml:
-- google-api-python-client >= 2.158.0
-- yt-dlp >= 2024.12.23
+
+## Error Handling
+
+- If `config.json` is missing, the program will prompt you to create one from the template
+- Network errors during download or API calls are handled gracefully
+- Transcription errors are logged and reported
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
