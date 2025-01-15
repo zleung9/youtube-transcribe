@@ -2,8 +2,8 @@
 import argparse
 import os
 import whisper
+import litellm
 import torch
-from openai import OpenAI
 from youtube.utils import load_config
 
 
@@ -65,18 +65,20 @@ def transcribe_video(video_path):
 
     # If Chinese is detected, force Simplified Chinese output
     if detected_lang == "zh":
-        result = model.transcribe(
-            video_path,
-            task="transcribe",
-            language="zh",
-            initial_prompt="请用简体中文转录以下内容。",
-            fp16=True
-        )
+        language = "zh"
+        initial_prompt = "请用简体中文转录以下内容。"
     else:
-        result = model.transcribe(
-            video_path,
-            fp16=True
-        )
+        language = "en"
+        initial_prompt = None
+
+    result = model.transcribe(
+        video_path,
+        task="transcribe",
+        language=language,
+        initial_prompt=initial_prompt,
+        fp16=True
+    )
+
 
     del model
 
@@ -90,10 +92,9 @@ def transcribe_video(video_path):
     with open(srt_path, "w", encoding="utf-8") as srt_file:
         srt_file.write(srt_content)
 
-    # Generate and save continuous text file
-    continuous_text = remove_time_stamp(srt_path)
+    formatted_txt = process_transcription(srt_content)
     with open(txt_path, "w", encoding="utf-8") as txt_file:
-        txt_file.write(continuous_text)
+        txt_file.write(formatted_txt)
 
     print(f"Transcription saved to: {srt_path}")
     print(f"Continuous text saved to: {txt_path}")
@@ -122,82 +123,108 @@ def remove_time_stamp(srt_path):
     return continuous_text
 
 
-def process_transcription(srt_path, task="summarize", max_tokens=500):
+def process_transcription(content, model_name="gpt-4o", provider="openai", chunk_size=80):
     """
-    Process the transcription using OpenAI API and save the result to a file
+    Process the transcription text file by converting it into a well-formatted article
+    using a specific language model through LiteLLM.
+
     Args:
-        srt_path: Path to the SRT file
-        task: Type of processing ("summarize", "analyze", etc.)
-        max_tokens: Maximum tokens for the response
+        content (str): Transcription text content to process
+        model_name (str): Name of the LLM model to use
+        provider (str): LLM provider (e.g., "openai", "anthropic")
+        chunk_size (int): Maximum number of time stamps per chunk in the srt file.
+
     Returns:
-        str: Path to the saved output file
+        str: Path to the output formatted article file
     """
+    # Load configuration
     config = load_config()
-    # Read the SRT file
-    with open(srt_path, 'r', encoding='utf-8') as file:
-        content = file.read()
 
-    # Extract just the text content (removing timestamps and numbers)
-    text_content = '\n'.join(
-        line for line in content.split('\n')
-        if not line.strip().isdigit() and '-->' not in line and line.strip()
-    )
-
-    # Initialize OpenAI client
-    client = OpenAI(api_key=config['openai']['api_key'])
-
-    # Prepare the prompt based on the task
-    if task == "summarize":
-        prompt = f"Please provide a concise summary of the following transcript:\n\n{text_content}"
-    else:
-        prompt = f"Please analyze the following transcript and {task}:\n\n{text_content}"
-
-    # Call OpenAI API
+    # Read system prompt from a file
     try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=max_tokens,
-            temperature=0.7
-        )
-        result = response.choices[0].message.content
+        with open('youtube/prompts/process_transcription.md', 'r', encoding='utf-8') as prompt_file:
+            system_prompt = prompt_file.read().strip()
+    except FileNotFoundError:
+        # Fallback to a default system prompt if file doesn't exist
+        system_prompt = "You are an expert at converting transcribed text into a well-formatted, flowing article."
 
-        # Create output file path
-        output_path = os.path.splitext(srt_path)[0] + f"_{task}.txt"
+    # Split SRT content into blocks (each block separated by empty lines)
+    srt_blocks = content.strip().split('\n\n')
 
-        # Save the result to a file
-        with open(output_path, 'w', encoding='utf-8') as output_file:
-            output_file.write(result)
+    processed_content = ""
+    for i in range(0, len(srt_blocks), chunk_size):
+        chunk = srt_blocks[i: i + chunk_size]
+        content = '\n\n'.join(chunk)
 
-        return output_path
-    except Exception as e:
-        error_message = f"Error processing transcription: {str(e)}"
-        # Save error message to file
-        output_path = os.path.splitext(srt_path)[0] + f"_{task}_error.txt"
-        with open(output_path, 'w', encoding='utf-8') as output_file:
-            output_file.write(error_message)
-        return output_path
+        user_prompt = f"""
+        Transcription Text:
+        {content}
+        
+        Please provide the reformatted text as a complete, flowing article.
+        """
+
+        try:
+            # Use LiteLLM to get response from the specified provider
+            response = litellm.completion(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                api_key=config.get(provider, {}).get("api_key"),
+                max_tokens=4096,
+                temperature=0.7
+            )
+            formatted_text = response.choices[0].message.content
+        except Exception:
+            formatted_text = f"\nError processing transcription with {provider}/{model_name}.\n"
+
+        processed_content += formatted_text + "\n\n"
+
+    return processed_content
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Transcribe video to SRT format.")
+    parser = argparse.ArgumentParser(description="Transcribe video to SRT format or process an existing SRT file.")
     parser.add_argument(
-        "-t", "--video_path",
+        "-p", "--video_path",
         type=str,
-        required=True,
         help="Specify the path to the video file to transcribe."
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "-s", "--srt_path",
+        type=str,
+        help="Specify the path to an existing SRT file to process."
+    )
+
+    # Ensure at least one of video_path or srt_path is provided
+    args = parser.parse_args()
+    if not args.video_path and not args.srt_path:
+        parser.error("Please provide either a video path (-t) or an SRT file path (-s).")
+
+    return args
 
 
 def main():
     args = parse_arguments()
-    video_path = args.video_path
 
-    srt_path, txt_path = transcribe_video(video_path)
-    print("Transcription complete!")
+    if args.video_path:
+        # Existing video transcription flow
+        srt_path, txt_path = transcribe_video(args.video_path)
+        print("Video transcription complete!")
+
+    if args.srt_path:
+        # Process existing SRT file
+        with open(args.srt_path, 'r', encoding='utf-8') as file:
+            src_content = file.read()
+        formatted_txt = process_transcription(src_content)
+
+        # Save formatted text to a file
+        txt_path = os.path.splitext(args.srt_path)[0] + ".txt"
+        with open(txt_path, "w", encoding="utf-8") as txt_file:
+            txt_file.write(formatted_txt)
+
+        print(f"SRT file processed. Formatted text saved to: {txt_path}")
 
 
 if __name__ == "__main__":

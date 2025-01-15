@@ -45,7 +45,7 @@ def download_video(video_id):
 
 def main():
     parser = argparse.ArgumentParser(description="YouTube Video Downloader")
-    parser.add_argument('video_id', type=str, help="YouTube video ID to download")
+    parser.add_argument("-y", '--video_id', type=str, help="YouTube video ID to download")
     args = parser.parse_args()
 
     video_path = download_video(args.video_id)
