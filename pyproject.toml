@@ -12,3 +12,11 @@ dependencies = [
     "openai>=1.0.0",
     "pytest>=8.3.4",
 ]
+
+[project.scripts]
+youtube = "youtube.main:main"
+ytranscribe = "youtube.transcriber:main"
+ydownload = "youtube.downloader:main"
+
+[tool.setuptools]
+packages = ["youtube"]
