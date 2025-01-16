@@ -79,7 +79,6 @@ def transcribe_video(video_path):
         fp16=True
     )
 
-
     del model
 
     # Create file paths
@@ -92,14 +91,9 @@ def transcribe_video(video_path):
     with open(srt_path, "w", encoding="utf-8") as srt_file:
         srt_file.write(srt_content)
 
-    formatted_txt = process_transcription(srt_content)
-    with open(txt_path, "w", encoding="utf-8") as txt_file:
-        txt_file.write(formatted_txt)
-
     print(f"Transcription saved to: {srt_path}")
-    print(f"Continuous text saved to: {txt_path}")
 
-    return srt_path, txt_path
+    return srt_path
 
 
 def remove_time_stamp(srt_path):
@@ -123,13 +117,13 @@ def remove_time_stamp(srt_path):
     return continuous_text
 
 
-def process_transcription(content, model_name="gpt-4o", provider="openai", chunk_size=80):
+def process_transcription(srt_path, model_name="gpt-4o", provider="openai", chunk_size=80):
     """
     Process the transcription text file by converting it into a well-formatted article
     using a specific language model through LiteLLM.
 
     Args:
-        content (str): Transcription text content to process
+        srt_path (str): Path to the input SRT file
         model_name (str): Name of the LLM model to use
         provider (str): LLM provider (e.g., "openai", "anthropic")
         chunk_size (int): Maximum number of time stamps per chunk in the srt file.
@@ -139,6 +133,10 @@ def process_transcription(content, model_name="gpt-4o", provider="openai", chunk
     """
     # Load configuration
     config = load_config()
+
+    # Read SRT content from the file
+    with open(srt_path, 'r', encoding='utf-8') as file:
+        content = file.read()
 
     # Read system prompt from a file
     try:
@@ -181,26 +179,44 @@ def process_transcription(content, model_name="gpt-4o", provider="openai", chunk
 
         processed_content += formatted_text + "\n\n"
 
-    return processed_content
+        # Save formatted text to a file
+        txt_path = os.path.splitext(srt_path)[0] + ".txt"
+        with open(txt_path, "w", encoding="utf-8") as txt_file:
+            txt_file.write(processed_content)
+        print(f"SRT file processed. Formatted text saved to: {txt_path}")
+
+    return txt_path
 
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Transcribe video to SRT format or process an existing SRT file.")
     parser.add_argument(
-        "-p", "--video_path",
-        type=str,
-        help="Specify the path to the video file to transcribe."
+        "-t", "--transcribe",
+        action="store_true",
+        default=False,
+        help="Whether to transcribe a video file."
     )
     parser.add_argument(
-        "-s", "--srt_path",
+        "-p", "--process",
+        action="store_true",
+        default=False,
+        help="Whether to process an existing SRT file."
+    )
+    parser.add_argument(
+        "-s", "--summmarize",
+        action="store_true",
+        default=False,
+        help="Whether to summarize the transcription."
+    )
+    parser.add_argument(
+        "-f", "--path",
         type=str,
-        help="Specify the path to an existing SRT file to process."
+        help="Specify the path to an existing video to transcribe or an SRT file to process.",
     )
 
     # Ensure at least one of video_path or srt_path is provided
     args = parser.parse_args()
-    if not args.video_path and not args.srt_path:
-        parser.error("Please provide either a video path (-t) or an SRT file path (-s).")
+    assert args.path is not None, "Please provide a path to a video file or an SRT file."
 
     return args
 
@@ -208,23 +224,19 @@ def parse_arguments():
 def main():
     args = parse_arguments()
 
-    if args.video_path:
+    srt_path, txt_path = None, None
+    if args.transcribe:
         # Existing video transcription flow
-        srt_path, txt_path = transcribe_video(args.video_path)
-        print("Video transcription complete!")
-
-    if args.srt_path:
-        # Process existing SRT file
-        with open(args.srt_path, 'r', encoding='utf-8') as file:
-            src_content = file.read()
-        formatted_txt = process_transcription(src_content)
-
-        # Save formatted text to a file
-        txt_path = os.path.splitext(args.srt_path)[0] + ".txt"
-        with open(txt_path, "w", encoding="utf-8") as txt_file:
-            txt_file.write(formatted_txt)
-
-        print(f"SRT file processed. Formatted text saved to: {txt_path}")
+        assert args.path.endswith(".mp4"), "Please provide a valid video file in MP4 format."
+        srt_path = transcribe_video(args.path)
+        print("Video transcription complete!")    
+    
+    if args.process:
+        if srt_path is None:
+            srt_path = args.path
+            assert srt_path is not None, "No SRT file to process."
+        # Existing SRT file processing flow
+        txt_path = process_transcription(srt_path)
 
 
 if __name__ == "__main__":
