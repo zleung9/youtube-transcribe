@@ -1,47 +1,81 @@
-# main.py
-
 import os
-from youtube.downloader import get_latest_video_id, download_video
-from youtube.transcriber import transcribe_video, process_transcription
+import argparse
+from youtube.downloader import download_video
+from youtube.transcriber import transcribe_video, process, summarize
 from youtube.utils import load_config
 
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Transcribe video to SRT format or process an existing SRT file.")
+    parser.add_argument(
+        "-y", '--video_id', 
+        type=str, 
+        help="YouTube video ID to download"
+    )
+    parser.add_argument(
+        "-t", "--transcribe",
+        action="store_true",
+        default=False,
+        help="Whether to transcribe a video file."
+    )
+    parser.add_argument(
+        "-p", "--process",
+        action="store_true",
+        default=False,
+        help="Whether to process an existing SRT file."
+    )
+    parser.add_argument(
+        "-s", "--summmarize",
+        action="store_true",
+        default=False,
+        help="Whether to summarize the transcription."
+    )
+    parser.add_argument(
+        "-f", "--path",
+        type=str,
+        help="Specify the path to an existing video to transcribe or an SRT file to process.",
+    )
+
+    # Ensure at least one of video_path or srt_path is provided
+    args = parser.parse_args()
+
+    return args
+
+
 def main():
-    config = load_config()
-    downloads_path = config['paths']['downloads']
-    if not os.path.exists(downloads_path):
-        os.makedirs(downloads_path)
+    args = parse_arguments()
 
-    latest_video_id = get_latest_video_id()
+    video_path, srt_path, txt_path, summary_path = None, None, None, None
+    
+    if args.video_id:
+        # Download and transcribe video flow
+        print("Downloading video...")
+        video_path = download_video(args.video_id)
+        print(f"Video downloaded: {video_path}")
 
-    downloaded_videos_file = 'downloaded_videos.txt'
-    if os.path.exists(downloaded_videos_file):
-        with open(downloaded_videos_file, 'r') as file:
-            downloaded_videos = file.read().splitlines()
-    else:
-        downloaded_videos = []
-
-    if latest_video_id not in downloaded_videos:
-        # Download video and get the file path
-        video_path = download_video(latest_video_id)
-        print(f"New video downloaded: https://www.youtube.com/watch?v={latest_video_id}")
-        
-        # Transcribe the video
-        print("Starting transcription...")
+    if args.transcribe:
+        # Existing video transcription flow
+        if video_path is None:
+            assert args.path.endswith(".mp4"), "Please provide a valid video file in MP4 format."
+            video_path = args.path
+        print(f"Transcribing video")
         srt_path = transcribe_video(video_path)
-        print(f"Transcription completed. SRT file saved at: {srt_path}")
-        
-        # Generate summary
-        print("Generating summary...")
-        summary = process_transcription(srt_path, task="summarize")
-        print("\nVideo Summary:")
-        print(summary)
+    
+    if args.process:
+        if srt_path is None:
+            assert args.path is not None, "No SRT file to process."
+            srt_path = args.path
+        # Existing SRT file processing flow
+        print(f"Processing SRT file.")
+        txt_path = process(srt_path)
 
-        with open(downloaded_videos_file, 'a') as file:
-            file.write(f"{latest_video_id}\n")
+    if args.summmarize:
+        if txt_path is None:
+            assert args.path is not None, "No transcription file to summarize."
+            txt_path = args.path
+        print(f"Summarizing transcription.")
+        summarized_path = summarize(txt_path)
         
-        print(f"New video downloaded: https://www.youtube.com/watch?v={latest_video_id}")
-    else:
-        print("No new video found.")
 
 if __name__ == "__main__":
     main()

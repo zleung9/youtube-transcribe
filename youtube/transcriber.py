@@ -96,28 +96,40 @@ def transcribe_video(video_path):
     return srt_path
 
 
-def remove_time_stamp(srt_path):
+def process(srt_path):
     """
-    Convert an SRT file into continuous text by removing timestamps and numbers.
+    Process an SRT file by extracting text lines and creating a new .txt file.
+
     Args:
-        srt_path: Path to the SRT file.
+        srt_path (str): Path to the SRT file to be processed.
 
     Returns:
-        str: Continuous text extracted from the SRT file.
+        str: Path to the newly created text file containing extracted text.
     """
-    with open(srt_path, 'r', encoding='utf-8') as file:
-        content = file.read()
+    # Read the SRT file
+    with open(srt_path, 'r', encoding='utf-8') as srt_file:
+        srt_text = srt_file.read()
+    
+    # Process the SRT content
+    lines = srt_text.split('\n')
+    # Get every third line (index 2, 5, 8, etc.) and strip whitespace
+    text_lines = [lines[i].strip() for i in range(len(lines)) if i % 4 == 2 and lines[i].strip()]
+    # Join all text lines with a space
+    processed_text =' '.join(text_lines)
+    
+    # Create new filename by replacing .srt with .txt
+    txt_path = srt_path.rsplit('.', 1)[0] + '.txt'
+    
+    # Write processed text to new file
+    with open(txt_path, 'w', encoding='utf-8') as txt_file:
+        txt_file.write(processed_text)
+    
+    print(f"Converted {srt_path} to {txt_path}")
 
-    # Extract just the text content (removing timestamps and numbers)
-    continuous_text = '\n'.join(
-        line.strip() for line in content.split('\n')
-        if not line.strip().isdigit() and '-->' not in line and line.strip()
-    )
 
-    return continuous_text
+    return txt_path
 
-
-def process_transcription(srt_path, model_name="gpt-4o", provider="openai", chunk_size=80):
+def summarize(txt_path, model_name="gpt-4o", provider="openai"):
     """
     Process the transcription text file by converting it into a well-formatted article
     using a specific language model through LiteLLM.
@@ -135,58 +147,50 @@ def process_transcription(srt_path, model_name="gpt-4o", provider="openai", chun
     config = load_config()
 
     # Read SRT content from the file
-    with open(srt_path, 'r', encoding='utf-8') as file:
+    with open(txt_path, 'r', encoding='utf-8') as file:
         content = file.read()
 
     # Read system prompt from a file
     try:
-        with open('youtube/prompts/process_transcription.md', 'r', encoding='utf-8') as prompt_file:
+        with open('youtube/prompts/summarize.md', 'r', encoding='utf-8') as prompt_file:
             system_prompt = prompt_file.read().strip()
     except FileNotFoundError:
         # Fallback to a default system prompt if file doesn't exist
-        system_prompt = "You are an expert at converting transcribed text into a well-formatted, flowing article."
+        system_prompt = "You are an expert at summarizing the following article."
 
-    # Split SRT content into blocks (each block separated by empty lines)
-    srt_blocks = content.strip().split('\n\n')
+    user_prompt = f"""
+    
+    text:
+    -------------------------- Begin ---------------------------------
+    {content}
+    -------------------------- End -----------------------------------
+    
+    Please generate a concise summary of the given content, and highlight key insights from the text.
+    """
 
-    processed_content = ""
-    for i in range(0, len(srt_blocks), chunk_size):
-        chunk = srt_blocks[i: i + chunk_size]
-        content = '\n\n'.join(chunk)
+    try:
+        # Use LiteLLM to get response from the specified provider
+        response = litellm.completion(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            api_key=config.get(provider, {}).get("api_key"),
+            max_tokens=4096,
+            temperature=0.7
+        )
+        summary_text = response.choices[0].message.content
+    except Exception:
+        summary_text = f"\nError processing transcription with {provider}/{model_name}.\n"
 
-        user_prompt = f"""
-        Transcription Text:
-        {content}
-        
-        Please provide the reformatted text as a complete, flowing article.
-        """
+    # Save formatted text to a file
+    summary_path = os.path.splitext(txt_path)[0] + ".md"
+    with open(summary_path, "w", encoding="utf-8") as file:
+        file.write(summary_text)
+    print(f"Summary saved to file: {summary_path}")
 
-        try:
-            # Use LiteLLM to get response from the specified provider
-            response = litellm.completion(
-                model=model_name,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                api_key=config.get(provider, {}).get("api_key"),
-                max_tokens=4096,
-                temperature=0.7
-            )
-            formatted_text = response.choices[0].message.content
-        except Exception:
-            formatted_text = f"\nError processing transcription with {provider}/{model_name}.\n"
-
-        processed_content += formatted_text + "\n\n"
-
-        # Save formatted text to a file
-        txt_path = os.path.splitext(srt_path)[0] + ".txt"
-        with open(txt_path, "w", encoding="utf-8") as txt_file:
-            txt_file.write(processed_content)
-        print(f"SRT file processed. Formatted text saved to: {txt_path}")
-
-    return txt_path
-
+    return summary_path
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Transcribe video to SRT format or process an existing SRT file.")
@@ -224,20 +228,29 @@ def parse_arguments():
 def main():
     args = parse_arguments()
 
-    srt_path, txt_path = None, None
+    video_path, srt_path, txt_path = None, None, None
     if args.transcribe:
         # Existing video transcription flow
         assert args.path.endswith(".mp4"), "Please provide a valid video file in MP4 format."
-        srt_path = transcribe_video(args.path)
-        print("Video transcription complete!")    
+        video_path = args.path
+        print(f"Transcribing video")
+        srt_path = transcribe_video(video_path)
     
     if args.process:
         if srt_path is None:
+            assert args.path is not None, "No SRT file to process."
             srt_path = args.path
-            assert srt_path is not None, "No SRT file to process."
         # Existing SRT file processing flow
-        txt_path = process_transcription(srt_path)
+        print(f"Processing SRT file.")
+        txt_path = process(srt_path)
 
+    if args.summmarize:
+        if txt_path is None:
+            assert args.path is not None, "No transcription file to summarize."
+            txt_path = args.path
+        print(f"Summarizing transcription.")
+        summarized_path = summarize(txt_path)
+        
 
 if __name__ == "__main__":
     main()
