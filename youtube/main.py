@@ -35,6 +35,12 @@ def parse_arguments():
         type=str,
         help="Specify the path to an existing video to transcribe or an SRT file to process.",
     )
+    parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        default=False,
+        help="Display the summary in the terminal after processing."
+    )
 
     # Ensure at least one of video_path or srt_path is provided
     args = parser.parse_args()
@@ -50,16 +56,17 @@ def main():
     if args.video_id:
         # Download and transcribe video flow
         print("Downloading video...")
-        video_path = download_video(args.video_id)
-        print(f"Video downloaded: {video_path}")
-
+        video_path, srt_path, vtt_path = download_video(args.video_id)
+        print(srt_path)
     if args.transcribe:
         # Existing video transcription flow
         if video_path is None:
             assert args.path.endswith(".mp4"), "Please provide a valid video file in MP4 format."
             video_path = args.path
-        print(f"Transcribing video")
-        srt_path = transcribe_video(video_path)
+        # Transcribe video if srt is not downloaded.
+        if not srt_path:        
+            print(f"Transcribing video")
+            srt_path = transcribe_video(video_path)
     
     if args.process:
         if srt_path is None:
@@ -74,8 +81,11 @@ def main():
             assert args.path is not None, "No transcription file to summarize."
             txt_path = args.path
         print(f"Summarizing transcription.")
-        summarized_path = summarize(txt_path)
-        
+        _, summary_text = summarize(txt_path)
+    
+    if args.verbose:
+        print("\n Summary:\n")
+        print(summary_text)
 
 if __name__ == "__main__":
     main()

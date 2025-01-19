@@ -99,6 +99,7 @@ def transcribe_video(video_path):
 def process(srt_path):
     """
     Process an SRT file by extracting text lines and creating a new .txt file.
+    Skips blocks with 4 lines (duplicate subtitles) and takes the last line from each valid block.
 
     Args:
         srt_path (str): Path to the SRT file to be processed.
@@ -110,12 +111,24 @@ def process(srt_path):
     with open(srt_path, 'r', encoding='utf-8') as srt_file:
         srt_text = srt_file.read()
     
-    # Process the SRT content
-    lines = srt_text.split('\n')
-    # Get every third line (index 2, 5, 8, etc.) and strip whitespace
-    text_lines = [lines[i].strip() for i in range(len(lines)) if i % 4 == 2 and lines[i].strip()]
+    # Split into blocks by double newline
+    blocks = srt_text.split('\n\n')
+    
+    # Extract text lines (skip blocks with 4 lines, take last line from others)
+    text_lines = []
+    for block in blocks:
+        lines = block.strip().split('\n')
+        
+        # Skip blocks with 4 lines (duplicate subtitles)
+        if len(lines) == 4:
+            continue
+            
+        # Take the last line from valid blocks
+        if len(lines) >= 3:  # Valid blocks have at least 3 lines
+            text_lines.append(lines[-1].strip())
+    
     # Join all text lines with a space
-    processed_text =' '.join(text_lines)
+    processed_text = ' '.join(line for line in text_lines if line)
     
     # Create new filename by replacing .srt with .txt
     txt_path = srt_path.rsplit('.', 1)[0] + '.txt'
@@ -125,9 +138,8 @@ def process(srt_path):
         txt_file.write(processed_text)
     
     print(f"Converted {srt_path} to {txt_path}")
-
-
     return txt_path
+    
 
 def summarize(txt_path, model_name="gpt-4o", provider="openai"):
     """
@@ -190,7 +202,7 @@ def summarize(txt_path, model_name="gpt-4o", provider="openai"):
         file.write(summary_text)
     print(f"Summary saved to file: {summary_path}")
 
-    return summary_path
+    return summary_path, summary_text
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Transcribe video to SRT format or process an existing SRT file.")
