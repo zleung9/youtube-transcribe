@@ -1,8 +1,7 @@
-import os
 import argparse
 from youtube.downloader import download_video
 from youtube.transcriber import transcribe_video, process, summarize
-from youtube.utils import load_config
+from app.db_models import Session, Video
 
 
 def parse_arguments():
@@ -50,14 +49,33 @@ def parse_arguments():
 
 def main():
     args = parse_arguments()
-
+    session = Session()
     video_path, srt_path, txt_path, summary_path = None, None, None, None
     
     if args.video_id:
+        # Check if video already exists in database
+        existing_video = session.query(Video).filter_by(video_id=args.video_id).first()
+        if existing_video:
+            print(f"Video {args.video_id} already processed")
+            return
         # Download and transcribe video flow
         print("Downloading video...")
-        video_path, srt_path, vtt_path = download_video(args.video_id)
+        metadata = download_video(args.video_id)
+        video_path = metadata['video_path']
+        srt_path = metadata['srt_path']
+        vtt_path = metadata['vtt_path']
+        
+        # Create new video entry
+        video = Video(
+            video_id=args.video_id,
+            title=metadata["video_title"],  # You'll need to implement this
+            video_path=video_path,
+            transcript_path=srt_path
+        )
+        session.add(video)
+
         print(srt_path)
+    
     if args.transcribe:
         # Existing video transcription flow
         if video_path is None:
@@ -82,7 +100,13 @@ def main():
             txt_path = args.path
         print(f"Summarizing transcription.")
         _, summary_text = summarize(txt_path)
+        if video:
+            video.summary_text = summary_text
+            video.summary_path = txt_path
     
+    session.commit()
+    session.close()
+
     if args.verbose:
         print("\n Summary:\n")
         print(summary_text)
