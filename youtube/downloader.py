@@ -1,9 +1,8 @@
 import os
 from googleapiclient.discovery import build
 import yt_dlp
-from youtube.utils import load_config, convert_vtt_to_srt, sanitize_filename, rename_title
+from youtube.utils import load_config, convert_vtt_to_srt, rename_title
 import argparse
-import litellm
 
 
 def get_latest_video_id():
@@ -22,7 +21,8 @@ def get_latest_video_id():
     request = youtube.playlistItems().list(
         part='snippet',
         playlistId=uploads_playlist_id,
-        maxResults=1
+        maxResults=1,
+        
     )
     response = request.execute()
     latest_video_id = response['items'][0]['snippet']['resourceId']['videoId']
@@ -34,7 +34,7 @@ def download_video(video_id):
     download_path = config['paths']['downloads']
     ydl_opts = {
         'outtmpl': os.path.join(download_path, '%(id)s.%(ext)s'),
-        'format': 'best',
+        'format': 'worst',
         'writeinfojson': False,
         'writesubtitles': True,
         'writeautomaticsub': True,  # Enable auto-generated subtitles if manual ones aren't available
@@ -46,9 +46,10 @@ def download_video(video_id):
             url=f"https://www.youtube.com/watch?v={video_id}", 
             download=True
         )
+        channel_name = info.get("channel")
         video_title = info['title']
         video_ext = info['ext']
-        channel_name = info.get('uploader') or info.get('channel') # Preferred method
+        channel_name = info.get('channel') # Preferred method
 
     # If vtt is downloaded, convert it to srt
     video_path = os.path.join(download_path, f"{video_id}.{video_ext}")
@@ -70,12 +71,12 @@ def download_video(video_id):
     title = rename_title(video_title, config)
     for key, path in paths.items():
         if path:  # Only rename if path exists
-            new_path = path.replace(video_id, title)
+            new_path = path.replace(video_id, f"{channel_name}__{video_id}__{title}")
             os.rename(path, new_path)
             paths[key] = new_path
     
     video_path, srt_path, vtt_path = paths['video'], paths['srt'], paths['vtt']
-    print(f"Video downloaded and renamed: {title}")
+    print(f"Video downloaded and renamed: {channel_name}__{video_id}__{title}")
     
     return video_path, srt_path, vtt_path
 
@@ -90,4 +91,25 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # main()
+    ydl_opts = {
+        'format': 'worst',
+        'writeinfojson': False,
+    }
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        
+        info = ydl.extract_info(
+            url="https://www.youtube.com/watch?v=5z_9sF0bNQE", 
+            download=False
+        )
+        channel_name = info.get("channel")
+        video_title = info['title']
+        video_ext = info['ext']
+        channel_name = info.get('channel') # Preferred method
+        uploader = info.get('uploader')
+    
+    print(channel_name)
+    print(uploader)
+    print(video_title)
+    print(video_ext)
