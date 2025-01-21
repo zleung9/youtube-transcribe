@@ -67,6 +67,44 @@ def video_detail(video_id):
     session.close()
     return render_template('video.html', video=video, transcript=transcript_text)
 
+@app.route('/transcript/<video_id>')
+def view_transcript(video_id):
+    session = Session()
+    video = session.query(Video).filter_by(video_id=video_id).first()
+    
+    if not video or not video.transcript_path:
+        return "Transcript not found", 404
+        
+    try:
+        with open(video.transcript_path, 'r', encoding='utf-8') as f:
+            transcript_text = f.read()
+        return render_template('text_view.html', 
+                             title=f"Transcript - {video.title}",
+                             content=transcript_text)
+    except FileNotFoundError:
+        return "Transcript file not found", 404
+    finally:
+        session.close()
+
+@app.route('/summary/<video_id>')
+def view_summary(video_id):
+    session = Session()
+    video = session.query(Video).filter_by(video_id=video_id).first()
+    
+    if not video or not video.summary_path:
+        return "Summary not found", 404
+        
+    try:
+        with open(video.summary_path, 'r', encoding='utf-8') as f:
+            summary_text = f.read()
+        return render_template('text_view.html', 
+                             title=f"Summary - {video.title}",
+                             content=summary_text)
+    except FileNotFoundError:
+        return "Summary file not found", 404
+    finally:
+        session.close()
+
 if __name__ == '__main__':
     app.run(
         debug=True, 

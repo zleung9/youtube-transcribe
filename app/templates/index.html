@@ -31,24 +31,41 @@
                 {% endfor %}
             {% endif %}
         {% endwith %}
-        <!-- Video Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+        <!-- Video List -->
+        <div class="space-y-4">
             {% for video in videos %}
             <div class="bg-white rounded-lg shadow p-4">
-                <h2 class="text-xl font-semibold mb-2">{{ video.title }}</h2>
-                <p class="text-gray-600">Processed: {{ video.processed_date.strftime('%Y-%m-%d') }}</p>
-                <div class="mt-4 flex space-x-2">
-                    <a href="/video/{{ video.video_id }}" 
-                       class="text-blue-500 hover:text-blue-700">View Details</a>
-                    {% if video.video_path %}
-                    <span class="text-green-500">• Video</span>
-                    {% endif %}
-                    {% if video.transcript_path %}
-                    <span class="text-green-500">• Transcript</span>
-                    {% endif %}
-                    {% if video.summary_path %}
-                    <span class="text-green-500">• Summary</span>
-                    {% endif %}
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h2 class="text-xl font-semibold">{{ video.title }}</h2>
+                        <p class="text-gray-600">Processed: {{ video.processed_date.strftime('%Y-%m-%d') }}</p>
+                    </div>
+                    <div class="flex space-x-4">
+                        {% if video.video_path %}
+                        <a href="https://www.youtube.com/watch?v={{ video.video_id }}" 
+                           target="_blank"
+                           class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">
+                            Video
+                        </a>
+                        {% endif %}
+                        
+                        {% if video.transcript_path %}
+                        <a href="/transcript/{{ video.video_id }}" 
+                           target="_blank"
+                           class="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600">
+                            Transcript
+                        </a>
+                        {% endif %}
+                        
+                        {% if video.summary_path %}
+                        <a href="/summary/{{ video.video_id }}" 
+                           target="_blank"
+                           class="px-3 py-1 bg-purple-500 text-white rounded hover:bg-purple-600">
+                            Summary
+                        </a>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
             {% endfor %}
