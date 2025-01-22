@@ -1,10 +1,10 @@
 import os
 from googleapiclient.discovery import build
 import yt_dlp
-from youtube.utils import load_config, convert_vtt_to_srt, rename_title
+from youtube.utils import load_config, convert_vtt_to_srt
 import argparse
 
-def get_video_info(video_id, download=False, path=None, quality='worst'):
+def get_video_info(video_id, download=False, path=None, format='worst'):
     '''
     Download a YouTube video using yt-dlp library.
     Parameters:
@@ -19,10 +19,11 @@ def get_video_info(video_id, download=False, path=None, quality='worst'):
         'quiet': False,
         'extract_flat': True,
         'outtmpl': os.path.join(path, '%(id)s.%(ext)s'),
-        'format': quality,
+        'format': format,
         'writeinfojson': True,
         'writesubtitles': True,
         'writeautomaticsub': True,  # Enable auto-generated subtitles if manual ones aren't available'
+        'subtitleslangs': ['en', "zh"]
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -31,25 +32,23 @@ def get_video_info(video_id, download=False, path=None, quality='worst'):
             download=download
         )
     
-    channel_name = info.get('channel', 'Unknown')
+    channel = info.get('channel', 'Unknown')
     video_title = info.get('title', 'Untitled')
     video_ext = info['ext']
     
     metadata = {
-        'channel_name': channel_name,
         'video_title': video_title,
         'video_ext': video_ext,
         'video_path': None,
-        'info': info
+        'info': info,
     }
 
     return metadata
 
 
 
-def get_latest_video_id():
+def get_latest_video_id(config):
 
-    config = load_config()
     youtube_config = config['youtube']
 
     youtube = build('youtube', 'v3', developerKey=youtube_config['api_key'])
@@ -71,8 +70,7 @@ def get_latest_video_id():
     return latest_video_id
 
 
-def download_video(video_id):
-    config = load_config()
+def download_video(video_id, config=load_config()):
     download_path = config['paths']['downloads']
     metadata = get_video_info(video_id, download=True, path=download_path)
     video_ext = metadata['video_ext']
@@ -85,8 +83,13 @@ def download_video(video_id):
         srt_path = convert_vtt_to_srt(vtt_path)
         print("vtt converted to srt")
     except FileNotFoundError:
-        vtt_path = None
-        print("No subtitles for this video, transcribe it please")
+        try:
+            vtt_path = video_path.replace(video_ext, "zh.vtt")
+            srt_path = convert_vtt_to_srt(vtt_path)
+            print("vtt converted to srt")
+        except FileNotFoundError:
+            vtt_path = None
+            print("No subtitles for this video, transcribe it please")
     
     # rename paths    
     metadata.update(
