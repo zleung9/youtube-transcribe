@@ -72,9 +72,9 @@ def process_video_pipeline(video_id):
         metadata = download_video(video_id, config=config)
         video_path = metadata['video_path']
         srt_path = metadata['srt_path']
-
+        
         # Transcribe if needed
-        if not os.path.exists(srt_path):
+        if srt_path:
             print("Transcribing video...")
             srt_path = transcribe_video(video_path)
 

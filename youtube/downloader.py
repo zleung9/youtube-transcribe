@@ -15,10 +15,14 @@ def get_video_info(video_id, download=False, path=None, format='worst'):
     Returns:
     - metadata: dict, metadata of the video
     '''
+    if path is None:
+        raise ValueError("Path cannot be None when downloading videos")
+        
+    video_path = os.path.join(path, f'{video_id}.%(ext)s')
     ydl_opts = {
         'quiet': False,
         'extract_flat': True,
-        'outtmpl': os.path.join(path, '%(id)s.%(ext)s'),
+        'outtmpl': video_path,
         'format': format,
         'writeinfojson': True,
         'writesubtitles': True,
@@ -36,11 +40,13 @@ def get_video_info(video_id, download=False, path=None, format='worst'):
     video_title = info.get('title', 'Untitled')
     video_ext = info['ext']
     
+    # Set the actual video path with the correct extension
+    actual_video_path = os.path.join(path, f'{video_id}.{video_ext}')
+    
     metadata = {
         'video_title': video_title,
         'video_ext': video_ext,
-        'video_path': None,
-        'info': info,
+        'video_path': actual_video_path if download else None,
     }
 
     return metadata
@@ -76,7 +82,7 @@ def download_video(video_id, config=load_config()):
     video_ext = metadata['video_ext']
 
     # If vtt is downloaded, convert it to srt
-    video_path = os.path.join(download_path, f"{video_id}.{video_ext}")
+    video_path = metadata['video_path']
     srt_path = None
     try:
         vtt_path = video_path.replace(video_ext, "en.vtt")
@@ -88,7 +94,8 @@ def download_video(video_id, config=load_config()):
             srt_path = convert_vtt_to_srt(vtt_path)
             print("vtt converted to srt")
         except FileNotFoundError:
-            vtt_path = None
+            # even vtt is not available, we still need to keep path, usually this is the case for "zh"
+            srt_path = vtt_path.replace("vtt", "srt")
             print("No subtitles for this video, transcribe it please")
     
     # rename paths    
