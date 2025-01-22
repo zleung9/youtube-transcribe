@@ -1,8 +1,9 @@
-from flask import Flask, render_template, redirect, url_for, flash
+from flask import Flask, render_template, redirect, url_for, flash, request, jsonify
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import sys
 import os
+import logging
 
 # Add the project root to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -24,15 +25,22 @@ def get_file_path(video_id, file_type, language=None):
     config = load_config()
     downloads_path = config['paths']['downloads']
     
+    print(f"Getting path for video: {video_id}, type: {file_type}, language: {language}")  # Debug print
+    
     if file_type == 'video':
-        return os.path.join(downloads_path, f"{video_id}.mp4")
+        path = os.path.join(downloads_path, f"{video_id}.mp4")
     elif file_type == 'transcript':
-        return os.path.join(downloads_path, f"{video_id}.{language}.srt")
+        path = os.path.join(downloads_path, f"{video_id}.{language}.srt")
     elif file_type == 'summary':
-        return os.path.join(downloads_path, f"{video_id}.{language}.md")
+        path = os.path.join(downloads_path, f"{video_id}.{language}.md")
     elif file_type == 'json':
-        return os.path.join(downloads_path, f"{video_id}.info.json")
-    return None
+        path = os.path.join(downloads_path, f"{video_id}.info.json")
+    else:
+        return None
+        
+    print(f"Constructed path: {path}")  # Debug print
+    print(f"File exists: {os.path.exists(path)}")  # Debug print
+    return path
 
 @app.route('/')
 def index():
@@ -94,46 +102,77 @@ def view_transcript(video_id):
     
     if not video:
         session.close()
-        return "Video not found", 404
+        return jsonify({"error": "Video not found"}), 404
         
     transcript_path = get_file_path(video_id, 'transcript', video.language)
     if not os.path.exists(transcript_path):
         session.close()
-        return "Transcript not found", 404
+        return jsonify({"error": "Transcript not found"}), 404
         
     try:
         with open(transcript_path, 'r', encoding='utf-8') as f:
             transcript_text = f.read()
-        return render_template('text_view.html', 
-                             title=f"Transcript - {video.title}",
-                             content=transcript_text)
+        return jsonify({"content": transcript_text})
     except Exception as e:
-        return f"Error reading transcript: {str(e)}", 500
+        return jsonify({"error": str(e)}), 500
     finally:
         session.close()
 
 @app.route('/summary/<video_id>')
 def view_summary(video_id):
     session = Session()
-    video = session.query(Video).filter_by(video_id=video_id).first()
-    
-    if not video:
-        session.close()
-        return "Video not found", 404
-        
-    summary_path = get_file_path(video_id, 'summary', video.language)
-    if not os.path.exists(summary_path):
-        session.close()
-        return "Summary not found", 404
-        
     try:
+        video = session.query(Video).filter_by(video_id=video_id).first()
+        
+        if not video:
+            logging.error(f"Video not found: {video_id}")
+            return jsonify({"error": "Video not found"}), 404
+            
+        summary_path = get_file_path(video_id, 'summary', video.language)
+        logging.info(f"Attempting to read summary from: {summary_path}")
+        
+        if not os.path.exists(summary_path):
+            logging.error(f"Summary file not found: {summary_path}")
+            return jsonify({"error": "Summary not found"}), 404
+            
         with open(summary_path, 'r', encoding='utf-8') as f:
             summary_text = f.read()
-        return render_template('text_view.html', 
-                             title=f"Summary - {video.title}",
-                             content=summary_text)
+            logging.info(f"Successfully read summary, length: {len(summary_text)}")
+            return jsonify({"content": summary_text})
+            
     except Exception as e:
-        return f"Error reading summary: {str(e)}", 500
+        logging.error(f"Error in view_summary: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        session.close()
+
+@app.route('/save-notes/<video_id>', methods=['POST'])
+def save_notes(video_id):
+    try:
+        notes = request.json.get('notes')
+        # For now, just print the notes to verify the endpoint is working
+        print(f"Saving notes for video {video_id}: {notes}")
+        return jsonify({'status': 'success', 'message': 'Notes saved successfully'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/test-paths/<video_id>')
+def test_paths(video_id):
+    """Debug endpoint to check file paths"""
+    session = Session()
+    try:
+        video = session.query(Video).filter_by(video_id=video_id).first()
+        if not video:
+            return jsonify({"error": "Video not found"}), 404
+            
+        summary_path = get_file_path(video_id, 'summary', video.language)
+        return jsonify({
+            "video_id": video_id,
+            "language": video.language,
+            "summary_path": summary_path,
+            "file_exists": os.path.exists(summary_path),
+            "downloads_path": load_config()['paths']['downloads']
+        })
     finally:
         session.close()
 

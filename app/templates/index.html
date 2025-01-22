@@ -3,10 +3,16 @@
 <head>
     <title>Video Library</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/github.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/gh/sindresorhus/github-markdown-css@4.0.0/github-markdown.min.css" rel="stylesheet">
+    
     <style>
         /* Video list scrolling */
         .video-list {
-            max-height: calc(100vh - 12rem);
+            height: calc(100vh - 10rem);
             overflow-y: auto;
             padding-right: 0.5rem;
         }
@@ -108,85 +114,122 @@
         .main-content.chat-active {
             width: 50%;
         }
+
+        /* Video list container */
+        .video-list-container {
+            background: white;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            height: calc(100vh - 10rem);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .video-list-content {
+            flex: 1;
+            overflow-y: auto;
+        }
+        .markdown-body {
+            box-sizing: border-box;
+            min-width: 200px;
+            padding: 1rem;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
     <div class="container mx-auto px-4 py-8">
-        <!-- Refresh Library Button Row -->
-        <div class="mb-8">
+        <!-- Refresh Library and URL Input Row -->
+        <div class="mb-8 flex items-center gap-4">
             <a href="/refresh-library" 
-               class="w-full bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 flex items-center justify-center">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               class="bg-blue-500 text-white p-2 rounded hover:bg-blue-600 flex items-center justify-center">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
                           d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                Refresh Library
             </a>
+            <input type="text"
+                   placeholder="Enter YouTube URL" 
+                   class="flex-1 rounded border px-3 py-2 focus:outline-none focus:border-blue-500">
+            <button class="bg-blue-500 text-white p-2 rounded hover:bg-blue-600 flex items-center justify-center">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                          d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                          d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </button>
         </div>
 
         <!-- Main content wrapper -->
         <div class="flex gap-8">
             <!-- Left Section: Video Library -->
             <div class="flex-1">
-                <!-- Flash Messages -->
-                {% with messages = get_flashed_messages(with_categories=true) %}
-                    {% if messages %}
-                        {% for category, message in messages %}
-                            <div class="mb-4 p-4 rounded 
-                                {% if category == 'error' %}bg-red-100 text-red-700 border border-red-400
-                                {% elif category == 'warning' %}bg-yellow-100 text-yellow-700 border border-yellow-400
-                                {% else %}bg-green-100 text-green-700 border border-green-400{% endif %}">
-                                {{ message }}
-                            </div>
-                        {% endfor %}
-                    {% endif %}
-                {% endwith %}
-
-                <!-- Video List -->
-                <div class="video-list space-y-4">
-                    {% for video in videos %}
-                    <div class="bg-white rounded-lg shadow p-4">
-                        <div class="flex justify-between items-start">
-                            <div class="flex-1">
-                                <div class="flex items-center gap-2">
-                                    <a href="https://www.youtube.com/watch?v={{ video.video_id }}" 
-                                       target="_blank"
-                                       class="text-xl font-semibold hover:text-blue-600">{{ video.title }}</a>
-                                    
-                                    {% if video.transcript %}
-                                    <a href="/transcript/{{ video.video_id }}" 
-                                       target="_blank"
-                                       class="p-1 bg-green-500 text-white rounded hover:bg-green-600 flex items-center">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                        </svg>
-                                    </a>
-                                    
-                                    {% if video.summary %}
-                                    <a href="/summary/{{ video.video_id }}" 
-                                       target="_blank"
-                                       class="p-1 bg-purple-500 text-white rounded hover:bg-purple-600 flex items-center">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                                        </svg>
-                                    </a>
-                                    {% endif %}
-                                    
-                                    <button onclick="startChat('{{ video.video_id }}')"
-                                            class="p-1 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                                        </svg>
-                                    </button>
-                                    {% endif %}
+                <div class="video-list-container">
+                    <!-- Flash Messages -->
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="mb-4 p-4 rounded 
+                                    {% if category == 'error' %}bg-red-100 text-red-700 border border-red-400
+                                    {% elif category == 'warning' %}bg-yellow-100 text-yellow-700 border border-yellow-400
+                                    {% else %}bg-green-100 text-green-700 border border-green-400{% endif %}">
+                                    {{ message }}
                                 </div>
-                                <div class="text-sm text-gray-600 mt-1">
-                                    <p>Channel: {{ video.channel }} &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp; Date: {{ video.date.strftime('%Y-%m-%d') }}</p>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+
+                    <!-- Video List -->
+                    <div class="video-list-content space-y-4">
+                        {% for video in videos %}
+                        <div class="bg-white rounded-lg shadow p-4">
+                            <div class="flex justify-between items-start">
+                                <div class="flex-1">
+                                    <div class="text-xl font-semibold hover:text-blue-600">
+                                        <a href="https://www.youtube.com/watch?v={{ video.video_id }}" 
+                                           target="_blank">{{ video.title }}</a>
+                                    </div>
+                                    <div class="flex items-center justify-between mt-1">
+                                        <span class="text-sm text-gray-600">
+                                            Channel: {{ video.channel }} &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp; 
+                                            Date: {{ video.date.strftime('%Y-%m-%d') }}
+                                        </span>
+                                        <div class="flex gap-2">
+                                            {% if video.transcript %}
+                                            <button onclick="loadTranscript('{{ video.video_id }}')"
+                                                   class="text-green-500 hover:text-green-600 flex items-center">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                </svg>
+                                            </button>
+                                            
+                                            {% if video.summary %}
+                                            <button onclick="loadSummary('{{ video.video_id }}')"
+                                                   class="text-purple-500 hover:text-purple-600 flex items-center">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                          d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                                                </svg>
+                                            </button>
+                                            {% endif %}
+                                            
+                                            <button onclick="startChat('{{ video.video_id }}')"
+                                                    class="text-blue-500 hover:text-blue-600 flex items-center">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                          d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                                </svg>
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
                 </div>
             </div>
 
@@ -197,6 +240,9 @@
                     <div class="flex border-b">
                         <button onclick="switchTab('chat')" class="tab-button active" data-tab="chat">
                             Chat
+                        </button>
+                        <button onclick="switchTab('transcript')" class="tab-button" data-tab="transcript">
+                            Transcript
                         </button>
                         <button onclick="switchTab('summary')" class="tab-button" data-tab="summary">
                             Summary
@@ -213,17 +259,32 @@
                         </div>
                     </div>
 
-                    <!-- Summary Tab -->
+                    <!-- Transcript tab -->
+                    <div id="transcript-tab" class="tab-content p-4">
+                        <div id="transcript-content" class="markdown-body">
+                            <!-- Transcript content will be loaded here -->
+                        </div>
+                    </div>
+                    
+                    <!-- Summary tab -->
                     <div id="summary-tab" class="tab-content p-4">
-                        <div id="summary-content">
+                        <div id="summary-content" class="markdown-body">
                             <!-- Summary content will be loaded here -->
                         </div>
                     </div>
 
-                    <!-- Notes Tab -->
+                    <!-- Notes tab -->
                     <div id="notes-tab" class="tab-content p-4">
-                        <div id="notes-content">
-                            <!-- Notes content will be loaded here -->
+                        <div class="flex flex-col h-full">
+                            <textarea id="notes-editor" 
+                                    class="w-full h-full p-4 border rounded resize-none focus:outline-none focus:border-blue-500"
+                                    placeholder="Enter your notes here..."></textarea>
+                            <div class="mt-4 flex justify-end">
+                                <button onclick="saveNotes()" 
+                                        class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                                    Save Notes
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -232,10 +293,12 @@
                         <div class="flex gap-2">
                             <input type="text" 
                                    id="chat-input"
-                                   placeholder="Type your message..." 
-                                   class="flex-1 rounded border px-3 py-2 focus:outline-none focus:border-blue-500">
+                                   placeholder="Chat function coming soon..." 
+                                   class="flex-1 rounded border px-3 py-2 focus:outline-none focus:border-blue-500"
+                                   disabled>
                             <button onclick="sendMessage()" 
-                                    class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                                    class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                                    disabled>
                                 Send
                             </button>
                         </div>
@@ -246,6 +309,8 @@
     </div>
 
     <script>
+        let currentVideoId = null;
+    
         function switchTab(tabName) {
             // Hide all tabs
             document.querySelectorAll('.tab-content').forEach(tab => {
@@ -263,16 +328,101 @@
             // Add active class to clicked button
             document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
         }
+    
+        async function loadTranscript(videoId) {
+            currentVideoId = videoId;
+            try {
+                const response = await fetch(`/transcript/${videoId}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    document.getElementById('transcript-content').innerHTML = `<p class="text-red-500">${data.error}</p>`;
+                } else {
+                    document.getElementById('transcript-content').innerHTML = marked.parse(data.content);
+                }
+                switchTab('transcript');
+            } catch (error) {
+                console.error('Error loading transcript:', error);
+                document.getElementById('transcript-content').innerHTML = '<p class="text-red-500">Error loading transcript</p>';
+            }
+        }
+    
+        async function loadSummary(videoId) {
+            currentVideoId = videoId;
+            try {
+                console.log(`Loading summary for video: ${videoId}`);
+                const response = await fetch(`/summary/${videoId}`);
+                console.log('Response status:', response.status);
+                
+                const contentType = response.headers.get('content-type');
+                console.log('Content type:', contentType);
+                
+                const data = await response.json();
+                console.log('Received data:', data);
+                
+                if (data.error) {
+                    console.error('Error from server:', data.error);
+                    document.getElementById('summary-content').innerHTML = `
+                        <div class="text-red-500 p-4">
+                            Error: ${data.error}
+                        </div>`;
+                } else if (data.content) {
+                    console.log('Rendering content with length:', data.content.length);
+                    document.getElementById('summary-content').innerHTML = marked.parse(data.content);
+                } else {
+                    console.error('Unexpected response format:', data);
+                    document.getElementById('summary-content').innerHTML = `
+                        <div class="text-red-500 p-4">
+                            Unexpected response format from server
+                        </div>`;
+                }
+                switchTab('summary');
+            } catch (error) {
+                console.error('Error loading summary:', error);
+                document.getElementById('summary-content').innerHTML = `
+                    <div class="text-red-500 p-4">
+                        Error loading summary: ${error.message}
+                    </div>`;
+            }
+        }
 
+
+        async function saveNotes() {
+            const notes = document.getElementById('notes-editor').value;
+            if (currentVideoId) {
+                try {
+                    const response = await fetch(`/save-notes/${currentVideoId}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ notes }),
+                    });
+                    const data = await response.json();
+                    
+                    if (data.status === 'success') {
+                        alert('Notes saved successfully!');
+                    } else {
+                        alert('Error saving notes: ' + data.message);
+                    }
+                } catch (error) {
+                    console.error('Error saving notes:', error);
+                    alert('Error saving notes. Please try again.');
+                }
+            } else {
+                alert('Please select a video first.');
+            }
+        }
+    
         function startChat(videoId) {
+            currentVideoId = videoId;
             // Clear previous messages
             document.getElementById('chat-messages').innerHTML = '';
             // Switch to chat tab
             switchTab('chat');
-            // Add logic to start chat with specific video
             console.log('Starting chat for video:', videoId);
         }
-
+    
         function sendMessage() {
             const input = document.getElementById('chat-input');
             const message = input.value.trim();
@@ -292,13 +442,20 @@
                 messagesDiv.scrollTop = messagesDiv.scrollHeight;
             }
         }
-
+    
         // Allow Enter key to send message
-        document.getElementById('chat-input').addEventListener('keypress', function(e) {
+        document.getElementById('chat-input')?.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 sendMessage();
             }
         });
+    
+        // Initialize marked
+        marked.setOptions({
+            breaks: true,
+            gfm: true
+        });
     </script>
+
 </body>
 </html>
