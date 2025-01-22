@@ -13,4 +13,5 @@ wheels/
 downloads/
 .vscode/
 config.json
-videos.db
+videos.db*
+.pytest_cache

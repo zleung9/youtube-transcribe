@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import datetime
@@ -8,19 +8,19 @@ Base = declarative_base()
 
 class Video(Base):
     __tablename__ = 'videos'
-    
     id = Column(Integer, primary_key=True)
     video_id = Column(String(20), unique=True, nullable=False)
     title = Column(String(200), nullable=False)
-    channel_name = Column(String(100))  # Changed from 'channel' to 'channel_name'
-    processed_date = Column(DateTime, default=datetime.datetime.utcnow)
-    video_path = Column(String(500))
-    transcript_path = Column(String(500))
-    summary_path = Column(String(500))
-    summary_text = Column(Text)
+    channel_id = Column(String(20))
+    channel = Column(String(100))
+    date = Column(DateTime, default=datetime.date.today)
+    language = Column(String(10))  # Store primary language
+    transcript = Column(Boolean, default=False)
+    summary = Column(Boolean, default=False)
     
     def __repr__(self):
-        return f"<Video(title='{self.title}', video_id='{self.video_id}')>"
+        return f"<Video(video_id='{self.video_id}', title='{self.title}', channel='{self.channel}')>"
+
 
 def init_db(db_path='videos.db'):
     # Only create tables if the database doesn't exist

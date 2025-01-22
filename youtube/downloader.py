@@ -20,7 +20,7 @@ def get_video_info(video_id, download=False, path=None, quality='worst'):
         'extract_flat': True,
         'outtmpl': os.path.join(path, '%(id)s.%(ext)s'),
         'format': quality,
-        'writeinfojson': False,
+        'writeinfojson': True,
         'writesubtitles': True,
         'writeautomaticsub': True,  # Enable auto-generated subtitles if manual ones aren't available'
     }
@@ -75,8 +75,6 @@ def download_video(video_id):
     config = load_config()
     download_path = config['paths']['downloads']
     metadata = get_video_info(video_id, download=True, path=download_path)
-    channel_name = metadata['channel_name']
-    video_title = metadata['video_title']
     video_ext = metadata['video_ext']
 
     # If vtt is downloaded, convert it to srt
@@ -91,21 +89,13 @@ def download_video(video_id):
         print("No subtitles for this video, transcribe it please")
     
     # rename paths    
-    paths = {
-        'video_path': video_path,
-        'srt_path': srt_path,
-        'vtt_path': vtt_path
-    }
-    title = rename_title(video_title, config)
-    for key, path in paths.items():
-        if path:  # Only rename if path exists
-            new_path = path.replace(video_id, f"{channel_name}__{video_id}__{title}")
-            os.rename(path, new_path)
-            paths[key] = new_path
-    
-    print(f"Video downloaded and renamed: {channel_name}__{video_id}__{title}")
-    
-    metadata.update(paths)
+    metadata.update(
+        {
+            'video_path': video_path,
+            'srt_path': srt_path,
+            'vtt_path': vtt_path
+        }
+    )
 
     return metadata
 

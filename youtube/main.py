@@ -40,6 +40,12 @@ def parse_arguments():
         default=False,
         help="Display the summary in the terminal after processing."
     )
+    parser.add_argument(
+        "-d", "--database",
+        action="store_true",
+        default=False,
+        help="Whether to store the results in the database."
+    )
 
     # Ensure at least one of video_path or srt_path is provided
     args = parser.parse_args()
@@ -64,15 +70,6 @@ def main():
         video_path = metadata['video_path']
         srt_path = metadata['srt_path']
         vtt_path = metadata['vtt_path']
-        
-        # Create new video entry
-        video = Video(
-            video_id=args.video_id,
-            title=metadata["video_title"],  # You'll need to implement this
-            video_path=video_path,
-            transcript_path=srt_path
-        )
-        session.add(video)
 
         print(srt_path)
     
@@ -99,14 +96,23 @@ def main():
             assert args.path is not None, "No transcription file to summarize."
             txt_path = args.path
         print(f"Summarizing transcription.")
-        _, summary_text = summarize(txt_path)
-        if video:
-            video.summary_text = summary_text
-            video.summary_path = txt_path
-    
+        summary_path, summary_text = summarize(txt_path)
+        
+    # Create new video entry
+    if args.database:
+        video = Video(
+            video_id=args.video_id,
+            title=metadata["video_title"],  # You'll need to implement this
+            video_path=video_path,
+            transcript_path=srt_path,
+            summary_path = summary_path,
+        )
+        session.add(video)
+
     session.commit()
     session.close()
 
+    # Display summary
     if args.verbose:
         print("\n Summary:\n")
         print(summary_text)

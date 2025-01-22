@@ -82,9 +82,7 @@ def transcribe_video(video_path):
     del model
 
     # Create file paths
-    base_path = os.path.splitext(video_path)[0]
-    srt_path = base_path + ".srt"
-    txt_path = base_path + ".txt"
+    srt_path = video_path.replace(".mp4", f".{language}.srt")
 
     # Generate and save SRT file
     srt_content = create_srt(result['segments'])
@@ -197,7 +195,7 @@ def summarize(txt_path, model_name="gpt-4o", provider="openai"):
         summary_text = f"\nError processing transcription with {provider}/{model_name}.\n"
 
     # Save formatted text to a file
-    summary_path = os.path.splitext(txt_path)[0] + ".md"
+    summary_path = txt_path.replace(".txt", ".md")
     with open(summary_path, "w", encoding="utf-8") as file:
         file.write(summary_text)
     print(f"Summary saved to file: {summary_path}")
