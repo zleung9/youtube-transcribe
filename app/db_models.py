@@ -13,7 +13,7 @@ class Video(Base):
     title = Column(String(200), nullable=False)
     channel_id = Column(String(20))
     channel = Column(String(100))
-    date = Column(DateTime, default=datetime.date.today)
+    date = Column(DateTime)
     language = Column(String(10))  # Store primary language
     transcript = Column(Boolean, default=False)
     summary = Column(Boolean, default=False)

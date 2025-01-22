@@ -7,9 +7,9 @@ import os
 # Add the project root to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from db_models import Video, Base
+from app.db_models import Video, Base
 from youtube.utils import load_config
-from scanner import scan_downloads_folder
+from app.scanner import scan_downloads_folder
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)

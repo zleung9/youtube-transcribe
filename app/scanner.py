@@ -1,5 +1,6 @@
 import os
 import json
+from datetime import datetime
 from app.db_models import Video, Session
 
 def get_video_info_from_json(json_path):
@@ -22,7 +23,8 @@ def get_video_info_from_json(json_path):
             'title': data.get('title'),
             'channel': data.get('channel'),
             'channel_id': data.get('channel_id'),  # Added channel_id extraction
-            'language': language  # Default to 'en' if not specified
+            'language': language,  # Default to 'en' if not specified
+            'date': data.get('upload_date')
         }
     except Exception:
         return None
@@ -99,7 +101,8 @@ def scan_downloads_folder(downloads_path, video_ids=[]):
                         title=info['title'],
                         channel=info['channel'],
                         channel_id=info['channel_id'],  # Added channel_id
-                        language=info['language']
+                        language=info['language'],
+                        date=datetime.strptime(info['date'], '%Y%m%d').date()
                     )
                     session.add(video)
                     stats['new_videos'] += 1
@@ -110,6 +113,7 @@ def scan_downloads_folder(downloads_path, video_ids=[]):
                     video.channel_id = info['channel_id']  # Update channel_id
                     video.language = info['language']
                     stats['updated_videos'] += 1
+                    video.date = datetime.strptime(info['date'], '%Y%m%d').date()
 
                 # Update video path
                 if files['video']:
