@@ -1,7 +1,6 @@
 import os
 import json
-from db_models import Video, Session
-import re
+from app.db_models import Video, Session
 
 def get_video_info_from_json(json_path):
     """Extract video information from JSON file."""
@@ -53,8 +52,11 @@ def get_associated_files(video_id, base_path):
 
     return files
 
-def scan_downloads_folder(downloads_path):
-    """Scan downloads folder and update database."""
+def scan_downloads_folder(downloads_path, video_ids=[]):
+    """
+    Scan downloads folder and update database.
+    If video_ids is provided, only scan those videos.
+    """
     session = Session()
 
     stats = {
@@ -69,6 +71,9 @@ def scan_downloads_folder(downloads_path):
         json_files = [f for f in os.listdir(downloads_path) if f.endswith('.info.json')]
 
         for json_file in json_files:
+            # If video_ids is provided, skip if not in list
+            if video_ids and json_file.replace('.info.json', '') not in video_ids:
+                continue
             stats['total_scanned'] += 1
             video_id = json_file.replace('.info.json', '')
             json_path = os.path.join(downloads_path, json_file)
