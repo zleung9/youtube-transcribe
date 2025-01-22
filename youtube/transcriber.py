@@ -139,7 +139,13 @@ def process(srt_path):
     return txt_path
     
 
-def summarize(txt_path, model_name="gpt-4o", provider="openai"):
+def summarize(
+        txt_path, 
+        model_name="gpt-4o", 
+        provider="openai", 
+        config=load_config(),
+        verbose=False
+    ):
     """
     Process the transcription text file by converting it into a well-formatted article
     using a specific language model through LiteLLM.
@@ -153,8 +159,6 @@ def summarize(txt_path, model_name="gpt-4o", provider="openai"):
     Returns:
         str: Path to the output formatted article file
     """
-    # Load configuration
-    config = load_config()
 
     # Read SRT content from the file
     with open(txt_path, 'r', encoding='utf-8') as file:
@@ -200,7 +204,11 @@ def summarize(txt_path, model_name="gpt-4o", provider="openai"):
         file.write(summary_text)
     print(f"Summary saved to file: {summary_path}")
 
-    return summary_path, summary_text
+    if verbose:
+        print("\n Summary:\n")
+        print(summary_text)
+    
+    return 
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Transcribe video to SRT format or process an existing SRT file.")

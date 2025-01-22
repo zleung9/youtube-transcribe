@@ -1,7 +1,10 @@
+import os
 import argparse
+from youtube.utils import load_config
 from youtube.downloader import download_video
 from youtube.transcriber import transcribe_video, process, summarize
 from app.db_models import Session, Video
+from app.scanner import scan_downloads_folder
 
 
 def parse_arguments():
@@ -54,9 +57,10 @@ def parse_arguments():
 
 
 def main():
+    config = load_config()
     args = parse_arguments()
     session = Session()
-    video_path, srt_path, txt_path, summary_path = None, None, None, None
+    video_path, srt_path, txt_path = None, None, None
     
     if args.video_id:
         # Check if video already exists in database
@@ -66,12 +70,9 @@ def main():
             return
         # Download and transcribe video flow
         print("Downloading video...")
-        metadata = download_video(args.video_id)
+        metadata = download_video(args.video_id, config=config)
         video_path = metadata['video_path']
         srt_path = metadata['srt_path']
-        vtt_path = metadata['vtt_path']
-
-        print(srt_path)
     
     if args.transcribe:
         # Existing video transcription flow
@@ -96,26 +97,14 @@ def main():
             assert args.path is not None, "No transcription file to summarize."
             txt_path = args.path
         print(f"Summarizing transcription.")
-        summary_path, summary_text = summarize(txt_path)
+        summarize(txt_path, verbose=args.verbose, config=config)
         
     # Create new video entry
     if args.database:
-        video = Video(
-            video_id=args.video_id,
-            title=metadata["video_title"],  # You'll need to implement this
-            video_path=video_path,
-            transcript_path=srt_path,
-            summary_path = summary_path,
+        scan_downloads_folder(
+            downloads_path=config['paths']['downloads'],
+            video_ids=[args.video_id]
         )
-        session.add(video)
-
-    session.commit()
-    session.close()
-
-    # Display summary
-    if args.verbose:
-        print("\n Summary:\n")
-        print(summary_text)
 
 if __name__ == "__main__":
     main()
