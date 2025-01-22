@@ -67,3 +67,18 @@ def rename_title(video_title, config):
 
     
     return title
+
+
+def extract_youtube_id(url):
+    """Extract video ID from a YouTube URL."""
+    patterns = [
+        r'(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)',
+        r'(?:youtube\.com\/embed\/)([\w-]+)',
+        r'(?:youtube\.com\/v\/)([\w-]+)',
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, url)
+        if match:
+            return match.group(1)
+    return None

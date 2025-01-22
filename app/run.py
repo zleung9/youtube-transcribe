@@ -1,4 +1,5 @@
 from flask import Flask, render_template, redirect, url_for, flash, request, jsonify
+from flask_cors import CORS 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import sys
@@ -9,10 +10,12 @@ import logging
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.db_models import Video, Base
-from youtube.utils import load_config
+from youtube.utils import load_config, extract_youtube_id
+from youtube.main import process_video_pipeline
 from app.scanner import scan_downloads_folder
 
 app = Flask(__name__)
+CORS(app) 
 app.secret_key = os.urandom(24)
 
 # Database setup
@@ -175,6 +178,26 @@ def test_paths(video_id):
         })
     finally:
         session.close()
+
+
+# Add this new route
+@app.route('/process-video', methods=['POST'])
+def process_video():
+    try:
+        url = request.json.get('url')
+        if not url:
+            return jsonify({'error': 'No URL provided'}), 400
+
+        video_id = extract_youtube_id(url)
+        if not video_id:
+            return jsonify({'error': 'Invalid YouTube URL'}), 400
+
+        # Call the processing pipeline
+        process_video_pipeline(video_id)
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(

@@ -56,6 +56,49 @@ def parse_arguments():
     return args
 
 
+def process_video_pipeline(video_id):
+    """Process a video through the entire pipeline."""
+    config = load_config()
+    session = Session()
+    
+    try:
+        # Check if video already exists
+        existing_video = session.query(Video).filter_by(video_id=video_id).first()
+        if existing_video:
+            raise Exception(f"Video {video_id} already processed")
+
+        # Download and get metadata
+        print("Downloading video...")
+        metadata = download_video(video_id, config=config)
+        video_path = metadata['video_path']
+        srt_path = metadata['srt_path']
+
+        # Transcribe if needed
+        if not os.path.exists(srt_path):
+            print("Transcribing video...")
+            srt_path = transcribe_video(video_path)
+
+        # Process transcript
+        print("Processing transcript...")
+        txt_path = process(srt_path)
+
+        # Generate summary
+        print("Generating summary...")
+        summarize(txt_path, verbose=False, config=config)
+
+        # Update database
+        scan_downloads_folder(
+            downloads_path=config['paths']['downloads'],
+            video_ids=[video_id]
+        )
+
+        return True
+    except Exception as e:
+        raise Exception(f"Error processing video: {str(e)}")
+    finally:
+        session.close()
+
+
 def main():
     config = load_config()
     args = parse_arguments()
@@ -105,6 +148,7 @@ def main():
             downloads_path=config['paths']['downloads'],
             video_ids=[args.video_id]
         )
+
 
 if __name__ == "__main__":
     main()

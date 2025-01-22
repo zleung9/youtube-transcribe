@@ -148,10 +148,12 @@
                           d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
             </a>
-            <input type="text"
+            <input type="text" 
+                   id="youtube-url-input"
                    placeholder="Enter YouTube URL" 
                    class="flex-1 rounded border px-3 py-2 focus:outline-none focus:border-blue-500">
-            <button class="bg-blue-500 text-white p-2 rounded hover:bg-blue-600 flex items-center justify-center">
+            <button onclick="processVideo()" 
+                    class="bg-blue-500 text-white p-2 rounded hover:bg-blue-600 flex items-center justify-center">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
                           d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
@@ -455,6 +457,61 @@
             breaks: true,
             gfm: true
         });
+
+
+        async function processVideo() {
+            const urlInput = document.getElementById('youtube-url-input');
+            if (!urlInput) {
+                console.error('Could not find YouTube URL input element');
+                return;
+            }
+
+            const url = urlInput.value.trim();
+            
+            if (!url) {
+                alert('Please enter a YouTube URL');
+                return;
+            }
+
+            // Disable the input and button during processing
+            urlInput.disabled = true;
+            const button = document.querySelector('button[onclick="processVideo()"]');
+            const originalButtonContent = button.innerHTML;
+            button.disabled = true;
+            button.innerHTML = `
+                <svg class="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Processing...
+            `;
+
+            try {
+                const response = await fetch('/process-video', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: url })
+                });
+
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    // Refresh the page to show the new video
+                    window.location.reload();
+                }
+            } catch (error) {
+                alert('Error processing video: ' + error);
+            } finally {
+                // Re-enable the input and button
+                urlInput.disabled = false;
+                button.disabled = false;
+                button.innerHTML = originalButtonContent;
+            }
+        }
     </script>
 
 </body>
