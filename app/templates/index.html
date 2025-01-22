@@ -3,13 +3,119 @@
 <head>
     <title>Video Library</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        /* Video list scrolling */
+        .video-list {
+            max-height: calc(100vh - 12rem);
+            overflow-y: auto;
+            padding-right: 0.5rem;
+        }
+
+        .video-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .video-list::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .video-list::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+
+        /* Chat window styles */
+        .chat-window {
+            position: fixed;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 50%;
+            background: white;
+            z-index: 50;
+            display: none;
+        }
+        
+        .chat-window.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Tab styles */
+        .tab-content {
+            display: none;
+            height: calc(100vh - 16rem);
+            overflow-y: auto;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .tab-button {
+            padding: 0.5rem 1rem;
+            border-bottom: 2px solid transparent;
+        }
+
+        .tab-button.active {
+            border-bottom-color: #3b82f6;
+            color: #3b82f6;
+        }
+
+        .chat-header {
+            position: sticky;
+            top: 0;
+            background: white;
+            z-index: 51;
+        }
+
+        .chat-input {
+            position: sticky;
+            bottom: 0;
+            background: white;
+            z-index: 51;
+            border-top: 1px solid #e5e7eb;
+            padding: 1rem;
+        }
+
+        /* Chat container styles */
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 10rem);
+            position: sticky;
+            top: 4rem;
+        }
+
+        .message-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+
+        .input-container {
+            padding: 1rem;
+            border-top: 1px solid #e5e7eb;
+            background: white;
+        }
+
+        /* Adjust main content when chat is open */
+        .main-content {
+            transition: width 0.3s ease;
+            width: 100%;
+        }
+
+        .main-content.chat-active {
+            width: 50%;
+        }
+    </style>
 </head>
 <body class="bg-gray-100">
     <div class="container mx-auto px-4 py-8">
-        <div class="flex justify-between items-center mb-8">
-            <h1 class="text-3xl font-bold">Video Library</h1>
+        <!-- Refresh Library Button Row -->
+        <div class="mb-8">
             <a href="/refresh-library" 
-               class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 flex items-center">
+               class="w-full bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 flex items-center justify-center">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
                           d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -18,70 +124,181 @@
             </a>
         </div>
 
-        <!-- Flash Messages -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="mb-4 p-4 rounded 
-                        {% if category == 'error' %}bg-red-100 text-red-700 border border-red-400
-                        {% elif category == 'warning' %}bg-yellow-100 text-yellow-700 border border-yellow-400
-                        {% else %}bg-green-100 text-green-700 border border-green-400{% endif %}">
-                        {{ message }}
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
+        <!-- Main content wrapper -->
+        <div class="flex gap-8">
+            <!-- Left Section: Video Library -->
+            <div class="flex-1">
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="mb-4 p-4 rounded 
+                                {% if category == 'error' %}bg-red-100 text-red-700 border border-red-400
+                                {% elif category == 'warning' %}bg-yellow-100 text-yellow-700 border border-yellow-400
+                                {% else %}bg-green-100 text-green-700 border border-green-400{% endif %}">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
 
-        <!-- Video List -->
-        <div class="space-y-4">
-            {% for video in videos %}
-            <div class="bg-white rounded-lg shadow p-4">
-                <div class="flex justify-between items-start">
-                    <div class="flex-1">
-                        <h2 class="text-xl font-semibold">[{{ video.language }}] {{ video.title }}</h2>
-                        <div class="text-sm text-gray-600 mt-1">
-                            <p>Channel: {{ video.channel }} &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp; Date: {{ video.date.strftime('%Y-%m-%d') }}</p>
+                <!-- Video List -->
+                <div class="video-list space-y-4">
+                    {% for video in videos %}
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <div class="flex justify-between items-start">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2">
+                                    <a href="https://www.youtube.com/watch?v={{ video.video_id }}" 
+                                       target="_blank"
+                                       class="text-xl font-semibold hover:text-blue-600">{{ video.title }}</a>
+                                    
+                                    {% if video.transcript %}
+                                    <a href="/transcript/{{ video.video_id }}" 
+                                       target="_blank"
+                                       class="p-1 bg-green-500 text-white rounded hover:bg-green-600 flex items-center">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                    </a>
+                                    
+                                    {% if video.summary %}
+                                    <a href="/summary/{{ video.video_id }}" 
+                                       target="_blank"
+                                       class="p-1 bg-purple-500 text-white rounded hover:bg-purple-600 flex items-center">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                                        </svg>
+                                    </a>
+                                    {% endif %}
+                                    
+                                    <button onclick="startChat('{{ video.video_id }}')"
+                                            class="p-1 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                        </svg>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                                <div class="text-sm text-gray-600 mt-1">
+                                    <p>Channel: {{ video.channel }} &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp; Date: {{ video.date.strftime('%Y-%m-%d') }}</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="flex space-x-4">
-                        <!-- Video Link -->
-                        <a href="https://www.youtube.com/watch?v={{ video.video_id }}" 
-                           target="_blank"
-                           class="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 flex items-center">
-                            <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
-                            </svg>
-                            YouTube
-                        </a>
+                    {% endfor %}
+                </div>
+            </div>
 
-                        <!-- Transcript Link - only show if transcript flag is true -->
-                        {% if video.transcript %}
-                        <a href="/transcript/{{ video.video_id }}" 
-                           target="_blank"
-                           class="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 flex items-center">
-                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            Transcript
-                        </a>
-                        {% endif %}
-                        
-                        <!-- Summary Link - only show if summary flag is true -->
-                        {% if video.summary %}
-                        <a href="/summary/{{ video.video_id }}" 
-                           target="_blank"
-                           class="px-3 py-1 bg-purple-500 text-white rounded hover:bg-purple-600 flex items-center">
-                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                            </svg>
+            <!-- Right Section: Chat Box -->
+            <div class="flex-1">
+                <div class="bg-white rounded-lg shadow chat-container">
+                    <!-- Tabs Header -->
+                    <div class="flex border-b">
+                        <button onclick="switchTab('chat')" class="tab-button active" data-tab="chat">
+                            Chat
+                        </button>
+                        <button onclick="switchTab('summary')" class="tab-button" data-tab="summary">
                             Summary
-                        </a>
-                        {% endif %}
+                        </button>
+                        <button onclick="switchTab('notes')" class="tab-button" data-tab="notes">
+                            Notes
+                        </button>
+                    </div>
+
+                    <!-- Chat Tab -->
+                    <div id="chat-tab" class="tab-content active">
+                        <div class="message-container" id="chat-messages">
+                            <!-- Messages will be populated here -->
+                        </div>
+                    </div>
+
+                    <!-- Summary Tab -->
+                    <div id="summary-tab" class="tab-content p-4">
+                        <div id="summary-content">
+                            <!-- Summary content will be loaded here -->
+                        </div>
+                    </div>
+
+                    <!-- Notes Tab -->
+                    <div id="notes-tab" class="tab-content p-4">
+                        <div id="notes-content">
+                            <!-- Notes content will be loaded here -->
+                        </div>
+                    </div>
+
+                    <!-- Input Container (always visible) -->
+                    <div class="input-container">
+                        <div class="flex gap-2">
+                            <input type="text" 
+                                   id="chat-input"
+                                   placeholder="Type your message..." 
+                                   class="flex-1 rounded border px-3 py-2 focus:outline-none focus:border-blue-500">
+                            <button onclick="sendMessage()" 
+                                    class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                                Send
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
-            {% endfor %}
         </div>
     </div>
+
+    <script>
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Remove active class from all buttons
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
+            });
+            
+            // Show selected tab
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+            
+            // Add active class to clicked button
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+        }
+
+        function startChat(videoId) {
+            // Clear previous messages
+            document.getElementById('chat-messages').innerHTML = '';
+            // Switch to chat tab
+            switchTab('chat');
+            // Add logic to start chat with specific video
+            console.log('Starting chat for video:', videoId);
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const message = input.value.trim();
+            if (message) {
+                // Add message to chat
+                const messagesDiv = document.getElementById('chat-messages');
+                messagesDiv.innerHTML += `
+                    <div class="flex justify-end mb-4">
+                        <div class="bg-blue-100 rounded-lg px-4 py-2 max-w-[80%]">
+                            ${message}
+                        </div>
+                    </div>
+                `;
+                // Clear input
+                input.value = '';
+                // Scroll to bottom
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            }
+        }
+
+        // Allow Enter key to send message
+        document.getElementById('chat-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
 </body>
 </html>
