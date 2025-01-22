@@ -199,6 +199,55 @@ def process_video():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
+@app.route('/delete-video/<video_id>', methods=['DELETE'])
+def delete_video(video_id):
+    try:
+        session = Session()
+        video = session.query(Video).filter_by(video_id=video_id).first()
+        
+        if not video:
+            return jsonify({'error': 'Video not found'}), 404
+
+        # Delete associated files
+        config = load_config()
+        downloads_path = config['paths']['downloads']
+        
+        # List of file extensions to delete
+        file_patterns = [
+            f"{video_id}.mp4",
+            f"{video_id}.info.json",
+            f"{video_id}.en.vtt",
+            f"{video_id}.zh.vtt",
+            f"{video_id}.en.srt",
+            f"{video_id}.zh.srt",
+            f"{video_id}.en.md",
+            f"{video_id}.zh.md"
+        ]
+        
+        # Delete all associated files
+        for pattern in file_patterns:
+            file_path = os.path.join(downloads_path, pattern)
+            if os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                except Exception as e:
+                    print(f"Error deleting file {file_path}: {str(e)}")
+
+        # Delete from database
+        session.delete(video)
+        session.commit()
+        
+        return jsonify({'success': True})
+    
+    except Exception as e:
+        session.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        session.close()
+
+
+
 if __name__ == '__main__':
     app.run(
         debug=True, 

@@ -135,6 +135,10 @@
             min-width: 200px;
             padding: 1rem;
         }
+        .video-selected {
+            background-color: #f3f4f6; /* Light gray background */
+            border: 1px solid #3b82f6; /* Blue border */
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -186,47 +190,61 @@
                     <div class="video-list-content space-y-4">
                         {% for video in videos %}
                         <div class="bg-white rounded-lg shadow p-4">
-                            <div class="flex justify-between items-start">
-                                <div class="flex-1">
-                                    <div class="text-xl font-semibold hover:text-blue-600">
-                                        <a href="https://www.youtube.com/watch?v={{ video.video_id }}" 
-                                           target="_blank">{{ video.title }}</a>
+                            <div class="flex flex-col gap-2">
+                                <!-- First row: Title only -->
+                                <div class="text-xl font-semibold hover:text-blue-600">
+                                    <a href="https://www.youtube.com/watch?v={{ video.video_id }}" 
+                                       target="_blank">{{ video.title }}</a>
+                                </div>
+                                
+                                <!-- Second row: Buttons, Channel, Date -->
+                                <div class="flex items-center text-sm text-gray-600">
+                                    <!-- Action buttons on the left -->
+                                    <div class="flex gap-2 mr-4">
+                                        {% if video.transcript %}
+                                        <button onclick="loadTranscript('{{ video.video_id }}')"
+                                               class="text-green-500 hover:text-green-600 flex items-center">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                            </svg>
+                                        </button>
+                                        
+                                        {% if video.summary %}
+                                        <button onclick="loadSummary('{{ video.video_id }}')"
+                                               class="text-purple-500 hover:text-purple-600 flex items-center">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                      d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                                            </svg>
+                                        </button>
+                                        {% endif %}
+                                        
+                                        <button onclick="startChat('{{ video.video_id }}')"
+                                                class="text-blue-500 hover:text-blue-600 flex items-center">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                      d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                            </svg>
+                                        </button>
+                                        {% endif %}
                                     </div>
-                                    <div class="flex items-center justify-between mt-1">
-                                        <span class="text-sm text-gray-600">
-                                            Channel: {{ video.channel }} &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp; 
-                                            Date: {{ video.date.strftime('%Y-%m-%d') }}
-                                        </span>
-                                        <div class="flex gap-2">
-                                            {% if video.transcript %}
-                                            <button onclick="loadTranscript('{{ video.video_id }}')"
-                                                   class="text-green-500 hover:text-green-600 flex items-center">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                                </svg>
-                                            </button>
-                                            
-                                            {% if video.summary %}
-                                            <button onclick="loadSummary('{{ video.video_id }}')"
-                                                   class="text-purple-500 hover:text-purple-600 flex items-center">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                                          d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                                                </svg>
-                                            </button>
-                                            {% endif %}
-                                            
-                                            <button onclick="startChat('{{ video.video_id }}')"
-                                                    class="text-blue-500 hover:text-blue-600 flex items-center">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                                          d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                                                </svg>
-                                            </button>
-                                            {% endif %}
-                                        </div>
+                    
+                                    <!-- Channel and Date in the middle -->
+                                    <div class="flex-1">
+                                        {{ video.channel }} &nbsp;|&nbsp;
+                                        {{ video.video_id }} &nbsp;|&nbsp; 
+                                        {{ video.date.strftime('%Y-%m-%d') if video.date else 'N/A' }}
                                     </div>
+                    
+                                    <!-- Delete button on the right -->
+                                    <button onclick="deleteVideo('{{ video.video_id }}')"
+                                            class="text-red-500 hover:text-red-600 flex items-center ml-4">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -331,64 +349,99 @@
             document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
         }
     
+        async function loadTranscriptAndSummary(videoId) {
+            // Highlight selected video
+            highlightSelectedVideo(videoId);
+            
+            try {
+                // Load both transcript and summary
+                const [transcriptResponse, summaryResponse] = await Promise.all([
+                    fetch(`/transcript/${videoId}`),
+                    fetch(`/summary/${videoId}`)
+                ]);
+
+                const transcriptData = await transcriptResponse.json();
+                const summaryData = await summaryResponse.json();
+
+                // Update transcript tab
+                if (transcriptData.error) {
+                    document.getElementById('transcript-content').innerHTML = `<p class="text-red-500">${transcriptData.error}</p>`;
+                } else {
+                    document.getElementById('transcript-content').innerHTML = marked.parse(transcriptData.content);
+                }
+
+                // Update summary tab
+                if (summaryData.error) {
+                    document.getElementById('summary-content').innerHTML = `
+                        <div class="text-red-500 p-4">
+                            Error: ${summaryData.error}
+                        </div>`;
+                } else if (summaryData.content) {
+                    document.getElementById('summary-content').innerHTML = marked.parse(summaryData.content);
+                }
+            } catch (error) {
+                console.error('Error loading content:', error);
+                document.getElementById('transcript-content').innerHTML = '<p class="text-red-500">Error loading content</p>';
+                document.getElementById('summary-content').innerHTML = '<p class="text-red-500">Error loading content</p>';
+            }
+        }
+
+        function highlightSelectedVideo(videoId) {
+            // Remove highlight from all videos
+            document.querySelectorAll('.bg-white.rounded-lg.shadow').forEach(el => {
+                el.classList.remove('video-selected');
+            });
+            
+            // Add highlight to selected video
+            const selectedVideo = document.querySelector(`[onclick="deleteVideo('${videoId}')"]`)
+                .closest('.bg-white.rounded-lg.shadow');
+            selectedVideo.classList.add('video-selected');
+        }
+
+        // Update the existing functions to use the new combined loading function
         async function loadTranscript(videoId) {
             currentVideoId = videoId;
-            try {
-                const response = await fetch(`/transcript/${videoId}`);
-                const data = await response.json();
-                
-                if (data.error) {
-                    document.getElementById('transcript-content').innerHTML = `<p class="text-red-500">${data.error}</p>`;
-                } else {
-                    document.getElementById('transcript-content').innerHTML = marked.parse(data.content);
-                }
-                switchTab('transcript');
-            } catch (error) {
-                console.error('Error loading transcript:', error);
-                document.getElementById('transcript-content').innerHTML = '<p class="text-red-500">Error loading transcript</p>';
+            await loadTranscriptAndSummary(videoId);
+            switchTab('transcript');
+        }
+
+        async function loadSummary(videoId) {
+            currentVideoId = videoId;
+            await loadTranscriptAndSummary(videoId);
+            switchTab('summary');
+        }
+
+        function startChat(videoId) {
+            currentVideoId = videoId;
+            // Clear previous messages
+            document.getElementById('chat-messages').innerHTML = '';
+            // Load transcript and summary
+            loadTranscriptAndSummary(videoId);
+            // Switch to chat tab
+            switchTab('chat');
+            console.log('Starting chat for video:', videoId);
+        }
+ 
+        function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const message = input.value.trim();
+            if (message) {
+                // Add message to chat
+                const messagesDiv = document.getElementById('chat-messages');
+                messagesDiv.innerHTML += `
+                    <div class="flex justify-end mb-4">
+                        <div class="bg-blue-100 rounded-lg px-4 py-2 max-w-[80%]">
+                            ${message}
+                        </div>
+                    </div>
+                `;
+                // Clear input
+                input.value = '';
+                // Scroll to bottom
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
             }
         }
     
-        async function loadSummary(videoId) {
-            currentVideoId = videoId;
-            try {
-                console.log(`Loading summary for video: ${videoId}`);
-                const response = await fetch(`/summary/${videoId}`);
-                console.log('Response status:', response.status);
-                
-                const contentType = response.headers.get('content-type');
-                console.log('Content type:', contentType);
-                
-                const data = await response.json();
-                console.log('Received data:', data);
-                
-                if (data.error) {
-                    console.error('Error from server:', data.error);
-                    document.getElementById('summary-content').innerHTML = `
-                        <div class="text-red-500 p-4">
-                            Error: ${data.error}
-                        </div>`;
-                } else if (data.content) {
-                    console.log('Rendering content with length:', data.content.length);
-                    document.getElementById('summary-content').innerHTML = marked.parse(data.content);
-                } else {
-                    console.error('Unexpected response format:', data);
-                    document.getElementById('summary-content').innerHTML = `
-                        <div class="text-red-500 p-4">
-                            Unexpected response format from server
-                        </div>`;
-                }
-                switchTab('summary');
-            } catch (error) {
-                console.error('Error loading summary:', error);
-                document.getElementById('summary-content').innerHTML = `
-                    <div class="text-red-500 p-4">
-                        Error loading summary: ${error.message}
-                    </div>`;
-            }
-        }
-
-
         async function saveNotes() {
             const notes = document.getElementById('notes-editor').value;
             if (currentVideoId) {
@@ -413,35 +466,6 @@
                 }
             } else {
                 alert('Please select a video first.');
-            }
-        }
-    
-        function startChat(videoId) {
-            currentVideoId = videoId;
-            // Clear previous messages
-            document.getElementById('chat-messages').innerHTML = '';
-            // Switch to chat tab
-            switchTab('chat');
-            console.log('Starting chat for video:', videoId);
-        }
-    
-        function sendMessage() {
-            const input = document.getElementById('chat-input');
-            const message = input.value.trim();
-            if (message) {
-                // Add message to chat
-                const messagesDiv = document.getElementById('chat-messages');
-                messagesDiv.innerHTML += `
-                    <div class="flex justify-end mb-4">
-                        <div class="bg-blue-100 rounded-lg px-4 py-2 max-w-[80%]">
-                            ${message}
-                        </div>
-                    </div>
-                `;
-                // Clear input
-                input.value = '';
-                // Scroll to bottom
-                messagesDiv.scrollTop = messagesDiv.scrollHeight;
             }
         }
     
@@ -510,6 +534,34 @@
                 urlInput.disabled = false;
                 button.disabled = false;
                 button.innerHTML = originalButtonContent;
+            }
+        }
+
+        async function deleteVideo(videoId) {
+            if (!confirm('Are you sure you want to delete this video? This action cannot be undone.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/delete-video/${videoId}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    // Remove the video element from the DOM
+                    const videoElement = document.querySelector(`[onclick="deleteVideo('${videoId}')"]`)
+                        .closest('.bg-white.rounded-lg.shadow');
+                    videoElement.remove();
+                    
+                    // Show success message
+                    alert('Video deleted successfully');
+                }
+            } catch (error) {
+                alert('Error deleting video: ' + error);
             }
         }
     </script>
