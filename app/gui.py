@@ -43,7 +43,7 @@ def main():
     
     # Create WebEngine View
     web = QWebEngineView()
-    web.setWindowTitle("YouTube Transcriber")
+    web.setWindowTitle("Prism")
     web.resize(1200, 800)
     web.setUrl(QUrl("http://127.0.0.1:5000"))
     web.show()
