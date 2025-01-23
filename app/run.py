@@ -15,7 +15,13 @@ from youtube.main import process_video_pipeline
 from app.scanner import scan_downloads_folder
 
 app = Flask(__name__)
-CORS(app) 
+CORS(app, resources={
+    r"/*": {
+        "origins": ["*"],  # Allow all origins for testing
+        "methods": ["GET", "POST", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type"]
+    }
+})
 app.secret_key = os.urandom(24)
 
 # Database setup
@@ -251,7 +257,7 @@ def delete_video(video_id):
 if __name__ == '__main__':
     app.run(
         debug=True, 
-        host='127.0.0.1',
+        host='0.0.0.1',
         port=5000,
         threaded=True
     )
