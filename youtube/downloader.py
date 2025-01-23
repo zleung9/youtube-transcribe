@@ -36,9 +36,9 @@ def get_video_info(video_id, download=False, path=None, format='worst'):
             download=download
         )
     
-    channel = info.get('channel', 'Unknown')
     video_title = info.get('title', 'Untitled')
     video_ext = info['ext']
+    language = info.get('language', 'zh')
     
     # Set the actual video path with the correct extension
     actual_video_path = os.path.join(path, f'{video_id}.{video_ext}')
@@ -47,6 +47,7 @@ def get_video_info(video_id, download=False, path=None, format='worst'):
         'video_title': video_title,
         'video_ext': video_ext,
         'video_path': actual_video_path if download else None,
+        'language': language
     }
 
     return metadata
@@ -80,23 +81,18 @@ def download_video(video_id, config=load_config()):
     download_path = config['paths']['downloads']
     metadata = get_video_info(video_id, download=True, path=download_path)
     video_ext = metadata['video_ext']
+    language = metadata['language']
 
     # If vtt is downloaded, convert it to srt
     video_path = metadata['video_path']
     srt_path = None
     try:
-        vtt_path = video_path.replace(video_ext, "en.vtt")
+        vtt_path = video_path.replace(video_ext, f"{language}.vtt")
         srt_path = convert_vtt_to_srt(vtt_path)
-        print("vtt converted to srt")
+        print(f"vtt converted to srt: {srt_path}")
     except FileNotFoundError:
-        try:
-            vtt_path = video_path.replace(video_ext, "zh.vtt")
-            srt_path = convert_vtt_to_srt(vtt_path)
-            print("vtt converted to srt")
-        except FileNotFoundError:
-            # even vtt is not available, we still need to keep path, usually this is the case for "zh"
-            srt_path = vtt_path.replace("vtt", "srt")
-            print("No subtitles for this video, transcribe it please")
+        # even vtt is not available, we still need to keep path, usually this is the case for "zh"
+        print("No subtitles for this video, transcribe it please")
     
     # rename paths    
     metadata.update(

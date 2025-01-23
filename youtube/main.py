@@ -56,7 +56,7 @@ def parse_arguments():
     return args
 
 
-def process_video_pipeline(video_id):
+def process_video_pipeline(video_id, transcribe=True):
     """Process a video through the entire pipeline."""
     config = load_config()
     session = Session()
@@ -74,7 +74,7 @@ def process_video_pipeline(video_id):
         srt_path = metadata['srt_path']
         
         # Transcribe if needed
-        if srt_path:
+        if not srt_path and transcribe:
             print("Transcribing video...")
             srt_path = transcribe_video(video_path)
 

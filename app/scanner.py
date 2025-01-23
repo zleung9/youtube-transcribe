@@ -6,12 +6,12 @@ from app.db_models import Video, Session
 def get_video_info_from_json(json_path):
     """Extract video information from JSON file."""
     try:
-        _ = open(json_path.replace('.info.json', '.en.srt'), 'r')
-        language = 'en'
+        _ = open(json_path.replace('.info.json', '.zh.srt'), 'r')
+        language = 'zh'
     except FileNotFoundError:
         try:
-            _ = open(json_path.replace('.info.json', '.zh.srt'), 'r')
-            language = 'zh'
+            _ = open(json_path.replace('.info.json', '.en.srt'), 'r')
+            language = 'en'
         except FileNotFoundError:
             language = None
 
