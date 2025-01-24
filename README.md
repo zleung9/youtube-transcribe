@@ -69,7 +69,26 @@ This will:
 3. Generate transcriptions in SRT format
 4. Optionally create summaries using OpenAI GPT
 
+## [TODO]
+1. Email service. 
+2. Chatbot implementation.
+   1. Chat to selected videos.
+   2. Chat to a channel.
+   3. Implement a vector database.
+3. Better audio-to-text transcribe
+   1. use better model
+4. UI improvement
+   1. Sort by processed date
+   2. Remove summary and transcript buttons.
+   3. Make font smaller for the title.
+   4. Dark theme
+5. Web deployment.
+   1. Process multiple requests uncynchronously.
+   2. Website
+   3. Login
+   4. Payment
 
+[Version]
 
 ## Error Handling
 
