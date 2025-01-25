@@ -208,6 +208,49 @@ def test_paths(video_id):
     finally:
         session.close()
 
+@app.route('/video-content/<video_id>')
+def video_content(video_id):
+    session = Session()
+    try:
+        video = session.query(Video).filter_by(video_id=video_id).first()
+        if not video:
+            return jsonify({
+                'transcript': {'error': 'Video not found'},
+                'summary': {'error': 'Video not found'}
+            }), 404
+
+        # Get transcript
+        transcript_text = ""
+        transcript_path = get_file_path(video_id, 'transcript', video.language)
+        if os.path.exists(transcript_path):
+            try:
+                with open(transcript_path, 'r', encoding='utf-8') as f:
+                    transcript_text = f.read()
+            except Exception as e:
+                transcript_text = f"Error reading transcript: {str(e)}"
+
+        # Get summary
+        summary_text = ""
+        summary_path = get_file_path(video_id, 'summary', video.language)
+        if os.path.exists(summary_path):
+            try:
+                with open(summary_path, 'r', encoding='utf-8') as f:
+                    summary_text = f.read()
+            except Exception as e:
+                summary_text = f"Error reading summary: {str(e)}"
+
+        return jsonify({
+            'transcript': {
+                'content': transcript_text,
+                'error': None if transcript_text else 'No transcript available'
+            },
+            'summary': {
+                'content': summary_text,
+                'error': None if summary_text else 'No summary available'
+            }
+        })
+    finally:
+        session.close()
 
 # Add this new route
 @app.route('/process-video', methods=['POST'])
