@@ -171,6 +171,7 @@
         <div class="flex gap-8">
             <!-- Left Section: Video Library -->
             <div class="flex-1">
+
                 <div class="video-list-container">
                     <!-- Flash Messages -->
                     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -185,6 +186,16 @@
                             {% endfor %}
                         {% endif %}
                     {% endwith %}
+                    
+                    <!-- Sort Controls -->
+                    <div class="flex justify-end mb-4">
+                        <select id="sort-select" 
+                                class="rounded border px-3 py-2 focus:outline-none focus:border-blue-500"
+                                onchange="changeSort(this.value)">
+                            <option value="process_date">Sort by Process Date</option>
+                            <option value="upload_date">Sort by Upload Date</option>
+                        </select>
+                    </div>
 
                     <!-- Video List -->
                     <div class="video-list-content space-y-4">
@@ -192,7 +203,7 @@
                         <div class="bg-white rounded-lg shadow p-4">
                             <div class="flex flex-col gap-2">
                                 <!-- First row: Title only -->
-                                <div class="text-xl font-semibold hover:text-blue-600">
+                                <div class="text-base font-semibold hover:text-blue-600">
                                     <a href="https://www.youtube.com/watch?v={{ video.video_id }}" 
                                        target="_blank">{{ video.title }}</a>
                                 </div>
@@ -234,7 +245,7 @@
                                     <div class="flex-1">
                                         {{ video.channel }} &nbsp;|&nbsp;
                                         {{ video.video_id }} &nbsp;|&nbsp; 
-                                        {{ video.date.strftime('%Y-%m-%d') if video.date else 'N/A' }}
+                                        {{ video.upload_date.strftime('%Y-%m-%d') if video.upload_date else 'N/A' }}
                                     </div>
                     
                                     <!-- Delete button on the right -->
@@ -251,6 +262,7 @@
                         {% endfor %}
                     </div>
                 </div>
+                
             </div>
 
             <!-- Right Section: Chat Box -->
@@ -482,7 +494,6 @@
             gfm: true
         });
 
-
         async function processVideo() {
             const urlInput = document.getElementById('youtube-url-input');
             if (!urlInput) {
@@ -564,6 +575,39 @@
                 alert('Error deleting video: ' + error);
             }
         }
+    
+        async function changeSort(sortBy) {
+            try {
+                const response = await fetch(`/?sort=${sortBy}`);
+                const html = await response.text();
+                
+                // Extract the video list content from the response
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                
+                // Add debug logging
+                console.log('Available classes:', doc.querySelector('.video-list-content'));
+                
+                const newVideoList = doc.querySelector('.video-list-content');
+                if (!newVideoList) {
+                    console.error('Could not find video list content in response');
+                    return;
+                }
+                
+                // Update the current video list
+                const currentList = document.querySelector('.video-list-content');
+                if (!currentList) {
+                    console.error('Could not find current video list');
+                    return;
+                }
+                
+                currentList.innerHTML = newVideoList.innerHTML;
+            } catch (error) {
+                console.error('Error changing sort:', error);
+                alert('Error updating the video list. Please refresh the page and try again.');
+            }
+        }
+
     </script>
 
 </body>
