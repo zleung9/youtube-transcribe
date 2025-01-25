@@ -119,8 +119,8 @@
         .video-list-container {
             background: white;
             border-radius: 0.5rem;
-            padding: 1rem;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            padding: 0rem 0rem 0rem 0rem;
+            box-shadow: 0 1px 3px rgba(108, 74, 74, 0.1);
             height: calc(100vh - 10rem);
             display: flex;
             flex-direction: column;
@@ -136,15 +136,14 @@
             padding: 1rem;
         }
         .video-selected {
-            background-color: #f3f4f6; /* Light gray background */
-            border: 1px solid #3b82f6; /* Blue border */
+            border: 2px solid #2563eb; /* blue-600 border */
         }
     </style>
 </head>
-<body class="bg-gray-100">
+<body class="bg-gray-900">
     <div class="container mx-auto px-4 py-8">
         <!-- Refresh Library and URL Input Row -->
-        <div class="mb-8 flex items-center gap-4">
+        <div class="mb-8 bg-gray-900 flex items-center gap-4">
             <a href="/refresh-library" 
                class="bg-blue-500 text-white p-2 rounded hover:bg-blue-600 flex items-center justify-center">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -168,11 +167,10 @@
         </div>
 
         <!-- Main content wrapper -->
-        <div class="flex gap-8">
+        <div class="flex bg-gray-900 gap-4">
             <!-- Left Section: Video Library -->
             <div class="flex-1">
-
-                <div class="video-list-container">
+                <div class="video-list-container bg-gray-900">
                     <!-- Flash Messages -->
                     {% with messages = get_flashed_messages(with_categories=true) %}
                         {% if messages %}
@@ -188,7 +186,7 @@
                     {% endwith %}
                     
                     <!-- Sort Controls -->
-                    <div class="flex justify-end mb-4">
+                    <div class="flex justify-end bg-gray-900 mb-4">
                         <select id="sort-select" 
                                 class="rounded border px-3 py-2 focus:outline-none focus:border-blue-500"
                                 onchange="changeSort(this.value)">
@@ -198,9 +196,9 @@
                     </div>
 
                     <!-- Video List -->
-                    <div class="video-list-content space-y-4">
+                    <div class="video-list-content bg-gray-900 space-y-2">
                         {% for video in videos %}
-                        <div class="bg-white rounded-lg shadow p-2 hover:bg-gray-50 cursor-pointer transition-colors" 
+                        <div class="bg-gray-200 rounded-lg shadow p-2 hover:bg-gray-200 cursor-pointer transition-colors" 
                             onclick="selectVideo('{{ video.video_id }}')"
                             data-video-id="{{ video.video_id }}">
                             <div class="flex flex-col gap-1">
@@ -232,7 +230,6 @@
                         {% endfor %}
                     </div>
                 </div>
-                
             </div>
 
             <!-- Right Section: Chat Box -->
@@ -274,21 +271,21 @@
                     </div>
 
                     <!-- Transcript tab -->
-                    <div id="transcript-tab" class="tab-content p-4">
+                    <div id="transcript-tab" class="tab-content bg-gray-200 p-2">
                         <div id="transcript-content" class="markdown-body">
                             <!-- Transcript content will be loaded here -->
                         </div>
                     </div>
                     
                     <!-- Summary tab -->
-                    <div id="summary-tab" class="tab-content p-4">
+                    <div id="summary-tab" class="tab-content bg-gray-200 p-2">
                         <div id="summary-content" class="markdown-body">
                             <!-- Summary content will be loaded here -->
                         </div>
                     </div>
 
                     <!-- Notes tab -->
-                    <div id="notes-tab" class="tab-content p-4">
+                    <div id="notes-tab" class="tab-content bg-gray-200 p-2">
                         <div class="flex flex-col h-full">
                             <textarea id="notes-editor" 
                                     class="w-full h-full p-4 border rounded resize-none focus:outline-none focus:border-blue-500"
