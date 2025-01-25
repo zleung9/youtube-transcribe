@@ -14,7 +14,7 @@ class Video(Base):
     channel_id = Column(String(20))
     channel = Column(String(100))
     upload_date = Column(DateTime)
-    process_date = Column(DateTime)
+    process_date = Column(DateTime, default=datetime.now)
     language = Column(String(10))  # Store primary language
     transcript = Column(Boolean, default=False)
     summary = Column(Boolean, default=False)
@@ -25,17 +25,18 @@ class Video(Base):
     @classmethod
     def from_info(cls, info):
         video = cls()
-        video.update_info(info)
+        video.update_info(info, new=True)
         return video
 
-    def update_info(self, info):
+    def update_info(self, info, new=False):
         self.video_id = info['video_id']
         self.title = info['title']
         self.channel = info['channel']
         self.channel_id = info['channel_id']  # Update channel_id
         self.language = info['language']
         self.upload_date = datetime.strptime(info['upload_date'], '%Y%m%d').date()
-        self.process_date = date.today()
+        if not new:
+            self.process_date = datetime.now()
 
 
 def init_db(db_path='videos.db'):
