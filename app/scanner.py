@@ -2,6 +2,7 @@ import os
 import json
 from datetime import datetime
 from app.db_models import Video, Session
+from app.utils import get_file_path
 
 def get_video_info_from_json(json_path):
     """Extract video information from JSON file."""
@@ -18,16 +19,26 @@ def get_video_info_from_json(json_path):
     try:
         with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        return {
+
+        # Validate required fields
+        video_id = data.get('id')
+        if not video_id:
+            return None
+        
+        info = {
             'video_id': data.get('id'),
             'title': data.get('title'),
             'channel': data.get('channel'),
             'channel_id': data.get('channel_id'),  # Added channel_id extraction
             'language': language,  # Default to 'en' if not specified
-            'date': data.get('upload_date')
+            'upload_date': data.get('upload_date')
         }
+        return info
+    
     except Exception:
+        print(f"Error parsing JSON file {json_path}: {str(e)}")
         return None
+
 
 def get_associated_files(video_id, base_path):
     """Get all associated files for a video ID."""
@@ -53,6 +64,7 @@ def get_associated_files(video_id, base_path):
                 files['json'] = filepath
 
     return files
+
 
 def scan_downloads_folder(downloads_path, video_ids=[]):
     """
@@ -96,28 +108,14 @@ def scan_downloads_folder(downloads_path, video_ids=[]):
 
                 if video is None:
                     # Create new video entry
-                    video = Video(
-                        video_id=video_id,
-                        title=info['title'],
-                        channel=info['channel'],
-                        channel_id=info['channel_id'],  # Added channel_id
-                        language=info['language'],
-                        date=datetime.strptime(info['date'], '%Y%m%d').date()
-                    )
+                    video = Video.from_info(info)
                     session.add(video)
                     stats['new_videos'] += 1
+                    print("new video", video)
                 else:
                     # Update existing video information
-                    video.title = info['title']
-                    video.channel = info['channel']
-                    video.channel_id = info['channel_id']  # Update channel_id
-                    video.language = info['language']
-                    stats['updated_videos'] += 1
-                    video.date = datetime.strptime(info['date'], '%Y%m%d').date()
-
-                # Update video path
-                if files['video']:
-                    video.video_path = files['video']
+                    video.update_info(info)
+                    print("updated video", video)
 
                 # Update transcript and summary flags based on existing files
                 video.transcript = len(files['transcripts']) > 0

@@ -53,8 +53,31 @@ def get_file_path(video_id, file_type, language=None):
 
 @app.route('/')
 def index():
+    sort_by = request.args.get('sort', 'process_date')  # Default to processed_date
     session = Session()
-    videos = session.query(Video).order_by(Video.date.desc()).all()
+    
+    if sort_by == 'upload_date':
+        videos = session.query(Video).order_by(Video.upload_date.desc()).all()
+    else:  # processed_date
+        videos = session.query(Video).order_by(Video.process_date.desc()).all()
+    
+    session.close()
+    
+    if request.headers.get('HX-Request'):  # If it's an AJAX request
+        return render_template('video_list.html', videos=videos)
+    return render_template('index.html', videos=videos)
+
+#handle AJAX sorting requests
+@app.route('/videos')
+def get_videos():
+    sort_by = request.args.get('sort', 'process_date')
+    session = Session()
+    
+    if sort_by == 'upload_date':
+        videos = session.query(Video).order_by(Video.upload_date.desc()).all()
+    else:
+        videos = session.query(Video).order_by(Video.process_date.desc()).all()
+        
     session.close()
     return render_template('index.html', videos=videos)
 

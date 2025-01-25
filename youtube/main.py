@@ -7,55 +7,6 @@ from app.db_models import Session, Video
 from app.scanner import scan_downloads_folder
 
 
-def parse_arguments():
-    parser = argparse.ArgumentParser(description="Transcribe video to SRT format or process an existing SRT file.")
-    parser.add_argument(
-        "-y", '--video_id', 
-        type=str, 
-        help="YouTube video ID to download"
-    )
-    parser.add_argument(
-        "-t", "--transcribe",
-        action="store_true",
-        default=False,
-        help="Whether to transcribe a video file."
-    )
-    parser.add_argument(
-        "-p", "--process",
-        action="store_true",
-        default=False,
-        help="Whether to process an existing SRT file."
-    )
-    parser.add_argument(
-        "-s", "--summmarize",
-        action="store_true",
-        default=False,
-        help="Whether to summarize the transcription."
-    )
-    parser.add_argument(
-        "-f", "--path",
-        type=str,
-        help="Specify the path to an existing video to transcribe or an SRT file to process.",
-    )
-    parser.add_argument(
-        "-v", "--verbose",
-        action="store_true",
-        default=False,
-        help="Display the summary in the terminal after processing."
-    )
-    parser.add_argument(
-        "-d", "--database",
-        action="store_true",
-        default=False,
-        help="Whether to store the results in the database."
-    )
-
-    # Ensure at least one of video_path or srt_path is provided
-    args = parser.parse_args()
-
-    return args
-
-
 def process_video_pipeline(video_id, transcribe=True):
     """Process a video through the entire pipeline."""
     config = load_config()
@@ -99,9 +50,8 @@ def process_video_pipeline(video_id, transcribe=True):
         session.close()
 
 
-def main():
+def main(args):
     config = load_config()
-    args = parse_arguments()
     session = Session()
     video_path, srt_path, txt_path = None, None, None
     
@@ -151,4 +101,13 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Transcribe video to SRT format or process an existing SRT file.")
+    parser.add_argument("-y", '--video_id', type=str, help="YouTube video ID to download")
+    parser.add_argument("-t", "--transcribe", action="store_true", default=False, help="Whether to transcribe a video file.")
+    parser.add_argument("-p", "--process", action="store_true", default=False, help="Whether to process an existing SRT file.")
+    parser.add_argument("-s", "--summmarize", action="store_true", default=False, help="Whether to summarize the transcription.")
+    parser.add_argument("-f", "--path", type=str, help="Specify the path to an existing video to transcribe or an SRT file to process.")
+    parser.add_argument("-v", "--verbose", action="store_true", default=False, help="Display the summary in the terminal after processing.")
+    parser.add_argument("-d", "--database", action="store_true", default=False, help="Whether to store the results in the database.")
+
+    main(args=parser.parse_args())
