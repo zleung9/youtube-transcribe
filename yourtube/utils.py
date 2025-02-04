@@ -3,6 +3,45 @@ import re
 import os
 from webvtt import WebVTT
 import litellm
+import torch
+
+def extract_youtube_id(url):
+    """Extract video ID from a YouTube URL."""
+    patterns = [
+        r'(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)',
+        r'(?:youtube\.com\/embed\/)([\w-]+)',
+        r'(?:youtube\.com\/v\/)([\w-]+)',
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, url)
+        if match:
+            return match.group(1)
+    return None
+
+    
+def get_llm_info(title="openai-gpt-4o"):
+    """Get model from config.json"""
+    config = load_config()
+    models = config.get("model", [])
+
+    # Find the model with matching title
+    for model in models:
+        if model.get("title") == title:
+            return model.get("provider"), model.get("name"), model.get("api_key")
+            
+    raise ValueError(f"Model {title} not found in config.json")
+
+def get_device():
+    """Get the device for running Whisper"""
+    device = "cpu"
+    if torch.cuda.is_available():
+        device = "cuda"
+    elif torch.backends.mps.is_available():
+        device = "mps"
+    if device in ["cuda", "mps"]:
+        print(f"Device detected: {device}")
+    return device
 
 
 def load_config():
@@ -30,7 +69,6 @@ def convert_vtt_to_srt(vtt_path):
     # os.remove(vtt_path)
     
     return srt_path
-
 
 def sanitize_filename(filename):
     """Remove or replace invalid characters in filename."""
@@ -82,3 +120,14 @@ def extract_youtube_id(url):
         if match:
             return match.group(1)
     return None
+
+
+
+def get_download_dir(path="downloads/"):
+    package_root = os.path.dirname(
+        os.path.dirname(
+            os.path.abspath(__file__)
+        )
+    )
+
+    return os.path.join(package_root, path)

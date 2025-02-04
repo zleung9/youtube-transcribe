@@ -1,7 +1,7 @@
 [project]
-name = "prism"
+name = "yourtube"
 version = "1.0.0"
-description = "Add your description here"
+description = "Your own youtube assistant"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -13,18 +13,15 @@ dependencies = [
     "pytest>=8.3.4",
     "litellm>=1.58.2",
     "webvtt-py>=0.5.1",
-    "flask>=3.1.0",
     "sqlalchemy>=2.0.37",
     "markdown>=3.7",
-    "flask-cors>=5.0.0",
-    "pyqt6>=6.8.0",
-    "pyqt6-webengine>=6.8.0",
+    "ffmpeg-python>=0.2.0",
 ]
 
 [project.scripts]
-youtube = "youtube.main:main"
-ytranscribe = "youtube.transcriber:main"
-ydownload = "youtube.downloader:main"
+youtube = "yourtube.main:main"
+ytranscribe = "yourtube.transcriber:main"
+ydownload = "yourtube.downloader:main"
 
 [tool.setuptools]
-packages = ["youtube"]
+packages = ["yourtube"]

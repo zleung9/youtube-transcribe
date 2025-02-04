@@ -1,7 +1,7 @@
 import os
 import json
 from datetime import datetime
-from app.db_models import Video, Session
+from youtube.db_module import Video, Session
 from app.utils import get_file_path
 
 def get_video_info_from_json(json_path):
@@ -39,31 +39,6 @@ def get_video_info_from_json(json_path):
         print(f"Error parsing JSON file {json_path}: {str(e)}")
         return None
 
-
-def get_associated_files(video_id, base_path):
-    """Get all associated files for a video ID."""
-    files = {
-        'video': None,
-        'transcripts': [],
-        'summaries': [],
-        'json': None
-    }
-
-    for filename in os.listdir(base_path):
-        if filename.startswith(video_id):
-            filepath = os.path.join(base_path, filename)
-            if filename == f"{video_id}.mp4":
-                files['video'] = filepath
-            elif filename.endswith('.srt'):
-                lang = filename.replace(f"{video_id}.", '').replace('.srt', '')
-                files['transcripts'].append((lang, filepath))
-            elif filename.endswith('.md'):
-                lang = filename.replace(f"{video_id}.", '').replace('.md', '')
-                files['summaries'].append((lang, filepath))
-            elif filename.endswith('.info.json'):
-                files['json'] = filepath
-
-    return files
 
 
 def scan_downloads_folder(downloads_path, video_ids=[]):

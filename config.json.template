@@ -1,12 +1,22 @@
 {
-    "youtube": {
-        "api_key": "YOUR_YOUTUBE_API_KEY",
-        "channel_id": "YOUR_CHANNEL_ID"
-    },
-    "openai": {
-        "api_key": "YOUR_OPENAI_API_KEY"
-    },
-    "paths": {
-        "downloads": "./downloads"
-    }
+    "model": [
+        {
+            "title": "openai-gpt-4o",
+            "provider": "openai",
+            "name": "gpt-4o",
+            "api_key": "your_api_key"
+        },
+        {   
+            "title": "you_can_add_more_models_as_you_like",
+            "provider": "anthropic",
+            "name": "claude-3-5-sonnet-20240620",
+            "api_key": "your_api_key"
+        },
+       {
+            "title": "openrouter-google-xxx",
+            "provider": "openrouter/google",
+            "name": "xxx",
+            "api_key": "your_openrouter_api_key"
+        }
+    ]
 }
