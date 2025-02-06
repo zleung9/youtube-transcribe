@@ -11,6 +11,9 @@ from sqlalchemy import (
     UUID
 )
 from yourtube.utils import convert_vtt_to_srt, get_download_dir
+from abc import ABC, abstractmethod
+from typing import List, Dict, Optional
+
 Base = declarative_base()
 
 
@@ -31,6 +34,13 @@ class Video(Base):
     summary         = Column(Boolean, default=False)
     _metadata       = {} # metadata from the 
     _default_path   = get_download_dir()
+
+
+    def __init__(self, **kwargs):
+        super().__init__()
+        for key, value in kwargs.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
 
     def __repr__(self):
         return f"<Video(video_id='{self.video_id}', title='{self.title}', channel='{self.channel}')>"
@@ -84,8 +94,8 @@ class Video(Base):
 
 
 class YoutubeVideo(Video):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def get(self, video_id, download_video=False, download_json=False, format='worst'):
         '''
@@ -174,3 +184,4 @@ class YoutubeVideo(Video):
         # Convert upload_date string to datetime object
         if isinstance(self.upload_date, str):
             self.upload_date = datetime.strptime(self.upload_date, '%Y%m%d')
+

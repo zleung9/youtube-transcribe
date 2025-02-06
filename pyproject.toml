@@ -16,6 +16,10 @@ dependencies = [
     "sqlalchemy>=2.0.37",
     "markdown>=3.7",
     "ffmpeg-python>=0.2.0",
+    "fastapi>=0.115.8",
+    "uvicorn>=0.34.0",
+    "schedule>=1.2.2",
+    "aiosmtplib>=4.0.0",
 ]
 
 [project.scripts]

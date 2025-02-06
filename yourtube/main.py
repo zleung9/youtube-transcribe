@@ -10,7 +10,7 @@ def main():
     parser.add_argument("-t", "--transcribe", action="store_true", default=False, help="Whether to transcribe a video file.")
     parser.add_argument("-p", "--process", action="store_true", default=False, help="Whether to process an existing SRT file.")
     parser.add_argument("-s", "--summarize", action="store_true", default=False, help="Whether to summarize the transcription.")
-    parser.add_argument("-f", "--path", type=str, help="Specify the path to an existing video to transcribe or an SRT file to process.")
+    parser.add_argument("-f", "--force", action="store_true", help="Force to update video even if it exists.")
     parser.add_argument("-v", "--verbose", action="store_true", default=False, help="Display the summary in the terminal after processing.")
 
     args=parser.parse_args()
@@ -18,7 +18,7 @@ def main():
     # Check if video already 
     video_id = extract_youtube_id(args.youtube_url)
     video = db.get_video(video_id=video_id)
-    if video:
+    if video and not args.force:
         print(f"Video {video_id} already processed")
         return
 

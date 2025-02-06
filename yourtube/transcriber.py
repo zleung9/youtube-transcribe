@@ -184,19 +184,22 @@ class Transcriber:
             with open(self._srt_path, "w", encoding="utf-8") as srt_file:
                 srt_file.write(srt_content)
             print(f"Transcription saved to: {self._srt_path}")
-            return 0
+            return srt_content
         
         except Exception as e:
             self._srt_path = ""
             print(f"Error transcribing video: {e}")
-            return 1
+            return None
 
     def release_model(self):
         """
         Release the loaded Whisper model from memory.
         """
-        del self.model
-        print("Model memory released")
+        try:
+            del self.model
+            print("Model memory released")
+        except Exception as e:
+            print(f"Error releasing model: {e}")
 
     def process(self, video: Video):
         """
@@ -244,7 +247,7 @@ class Transcriber:
             txt_file.write(processed_text)
         
         print(f"Converted {self._srt_path} to {self._txt_path}")
-        return 0
+        return processed_text
     
 
     def summarize(self, video: Video, title="openai-gpt-4o", verbose=False):
@@ -297,3 +300,5 @@ class Transcriber:
         if verbose:
             print("\n Summary:\n")
             print(summary_text)
+        
+        return summary_text
