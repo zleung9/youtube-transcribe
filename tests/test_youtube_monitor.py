@@ -1,13 +1,14 @@
 import unittest
 from unittest.mock import patch, MagicMock
 from yourtube import Video, YoutubeMonitor
+from datetime import datetime
 
 class TestYoutubeMonitor(unittest.TestCase):
     def setUp(self):
         # Sample configuration for the YoutubeMonitor with two channels
         self.config = {
             'youtube': {
-                'api_key': 'AIzaSyBmwdkXdNpaD1phF24UdoyrjW-Y2ojJzXs',
+                'api_key': 'test_api_key',
                 'channels': [
                     {
                         'channel_id': 'UCFQsi7WaF5X41tcuOryDk8w',
@@ -22,24 +23,38 @@ class TestYoutubeMonitor(unittest.TestCase):
         }
         self.monitor = YoutubeMonitor(self.config)
 
-
     def test_get_latest_videos(self):
-
-        # Call the method under test for both channels
-        videos_channel_1 = self.monitor.get_latest_videos(self.config['youtube']['channels'][0]['channel_id'], max_results=1)
-        videos_channel_2 = self.monitor.get_latest_videos(self.config['youtube']['channels'][1]['channel_id'], max_results=1)
-
-        # Assertions for channel 1
-        self.assertEqual(len(videos_channel_1), 1)
-        self.assertIsInstance(videos_channel_1[0], Video)
-        self.assertEqual(videos_channel_1[0].video_id, 'uk0qGI1T5Kw')
-        self.assertEqual(videos_channel_1[0].title, '美股 老实人AMD确实不会烙饼！大跌后续怎么看？GOOG步MSFT后尘！SPOT订阅大超预期！')
-
-        # Assertions for channel 2
-        self.assertEqual(len(videos_channel_2), 1)
-        self.assertIsInstance(videos_channel_2[0], Video)
-        self.assertEqual(videos_channel_2[0].video_id, 'WQV94q2iyFc')
-        self.assertEqual(videos_channel_2[0].title, '深度|| 佛祖原本内定的三个取经徒弟分别是谁？')
+        """Test getting latest videos from a channel"""
+        # Mock the YoutubeDL extract_info response with timestamp
+        current_timestamp = int(datetime.now().timestamp())
+        mock_info = {
+            'entries': [{
+                'id': 'video123',
+                'title': 'Test Video',
+                'upload_date': '20240101',
+                'timestamp': current_timestamp,
+                'channel': 'Test Channel',
+                'channel_url': 'https://www.youtube.com/channel/UC123',
+                'webpage_url': 'https://www.youtube.com/watch?v=video123'
+            }]
+        }
+        
+        # Create a context manager mock
+        mock_ydl = MagicMock()
+        mock_ydl.__enter__.return_value = mock_ydl
+        mock_ydl.__exit__.return_value = None
+        mock_ydl.extract_info.return_value = mock_info
+        
+        # Mock the YoutubeDL class to return our mock instance
+        with patch('yt_dlp.YoutubeDL', return_value=mock_ydl):
+            videos_channel_1 = self.monitor.get_latest_videos('UCFQsi7WaF5X41tcuOryDk8w')
+            self.assertEqual(len(videos_channel_1), 1)
+            self.assertEqual(videos_channel_1[0].video_id, 'video123')
+            
+            # Verify the mock was called with correct URL
+            mock_ydl.extract_info.assert_called_once()
+            call_args = mock_ydl.extract_info.call_args[0][0]
+            self.assertIn('UCFQsi7WaF5X41tcuOryDk8w', call_args)
 
 if __name__ == '__main__':
     unittest.main()

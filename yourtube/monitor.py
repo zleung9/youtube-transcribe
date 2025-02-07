@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from yourtube import SqliteDB, Video, YoutubeVideo
-from googleapiclient.discovery import build
+from yt_dlp import YoutubeDL
+import re
 
 
 class Monitor(ABC):
@@ -37,45 +38,51 @@ class Monitor(ABC):
 class YoutubeMonitor(Monitor):
     def __init__(self, config: Dict):
         super().__init__(config)
-        self.youtube = build('youtube', 'v3', 
-                           developerKey=config['youtube']['api_key'])
+        self.ydl_opts = {
+            'quiet': True,
+            'extract_flat': True,
+            'force_generic_extractor': False
+        }
     
     def get_channel_info(self, channel_id: str) -> Dict:
-        request = self.youtube.channels().list(
-            part="snippet,contentDetails,statistics",
-            id=channel_id
-        )
-        response = request.execute()
-        return response['items'][0] if response['items'] else None
+        with YoutubeDL(self.ydl_opts) as ydl:
+            try:
+                channel_url = f"https://www.youtube.com/channel/{channel_id}"
+                info = ydl.extract_info(channel_url, download=False)
+                return {
+                    'snippet': {
+                        'title': info.get('channel'),
+                        'description': info.get('description')
+                    },
+                    'statistics': {
+                        'subscriberCount': info.get('subscriber_count'),
+                        'videoCount': info.get('video_count')
+                    }
+                }
+            except Exception as e:
+                print(f"Error getting channel info: {e}")
+                return None
     
     def get_channel_id_from_handle(self, handle: str) -> Optional[str]:
         """Convert a YouTube handle/username to a channel ID"""
-        # Remove @ if present
         handle = handle.lstrip('@')
-        
-        # Try searching for the channel
-        request = self.youtube.search().list(
-            part="snippet",
-            q=handle,
-            type="channel",
-            maxResults=1
-        )
-        response = request.execute()
-        
-        # Return the channel ID if found
-        if response.get('items'):
-            return response['items'][0]['id']['channelId']
+        with YoutubeDL(self.ydl_opts) as ydl:
+            try:
+                # Try with @handle first
+                url = f"https://www.youtube.com/@{handle}"
+                info = ydl.extract_info(url, download=False)
+                # Extract channel ID from channel_url
+                channel_url = info.get('channel_url', '')
+                channel_id = re.search(r'channel/(UC[\w-]+)', channel_url)
+                if channel_id:
+                    return channel_id.group(1)
+            except:
+                return None
         return None
 
     def get_latest_videos(self, channel_identifier: str, max_results: int = 10, until_date: Optional[datetime] = None) -> List[Video]:
-        """
-        Get latest videos from a channel using either channel ID or handle/username
-        Args:
-            channel_identifier: Channel ID or handle (with or without @)
-            max_results: Maximum number of videos to return
-            until_date: Optional date to get videos until
-        """
-        # If the identifier starts with @ or doesn't look like a channel ID, treat it as a handle
+        """Get latest videos from a channel using yt-dlp"""
+        # Handle channel identifier
         if channel_identifier.startswith('@') or not channel_identifier.startswith('UC'):
             channel_id = self.get_channel_id_from_handle(channel_identifier)
             if not channel_id:
@@ -83,40 +90,49 @@ class YoutubeMonitor(Monitor):
         else:
             channel_id = channel_identifier
 
-        request = self.youtube.search().list(
-            part="snippet",
-            channelId=channel_id,
-            order="date",
-            maxResults=max_results
-        )
-        response = request.execute()
-        
+        # Set up yt-dlp options for playlist extraction
+        playlist_opts = {
+            **self.ydl_opts,
+            'playlistend': max_results
+        }
+
         videos = []
-        for item in response['items']:
-            if item['id']['kind'] == 'youtube#video':
-                upload_date = datetime.strptime(
-                    item['snippet']['publishedAt'], 
-                    '%Y-%m-%dT%H:%M:%SZ'
-                )
+        with YoutubeDL(playlist_opts) as ydl:
+            try:
+                # Get channel uploads playlist
+                channel_url = f"https://www.youtube.com/channel/{channel_id}/videos"
+                info = ydl.extract_info(channel_url, download=False)
                 
-                # If until_date is specified and the video is newer, skip it
-                if until_date and upload_date > until_date:
-                    continue
+                if not info.get('entries'):
+                    return videos
+
+                for entry in info['entries']:
+                    # Convert timestamp to datetime
+                    upload_date = datetime.strptime(
+                        str(entry.get('timestamp')), 
+                        '%Y%m%d'
+                    ).replace(tzinfo=timezone.utc)
                     
-                video = YoutubeVideo(
-                    video_id=item['id']['videoId'],
-                    title=item['snippet']['title'],
-                    channel_id=channel_id,
-                    channel=item['snippet']['channelTitle'],
-                    upload_date=upload_date
-                )
-                videos.append(video)
-                
-                # If we have enough videos up to the specified date, stop processing
-                if until_date and len(videos) >= max_results:
-                    break
-        
-        return videos
+                    # Skip if video is newer than until_date
+                    if until_date and upload_date > until_date:
+                        continue
+                    
+                    video = YoutubeVideo(
+                        video_id=entry['id'],
+                        title=entry['title'],
+                        channel_id=channel_id,
+                        channel=entry.get('channel', ''),
+                        upload_date=upload_date
+                    )
+                    videos.append(video)
+                    
+                    if len(videos) >= max_results:
+                        break
+                        
+                return videos
+            except Exception as e:
+                print(f"Error getting videos: {e}")
+                return []
 
 
 class BilibiliMonitor(Monitor):
