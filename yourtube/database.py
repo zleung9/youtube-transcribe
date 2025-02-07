@@ -98,7 +98,7 @@ class SqliteDB(Database):
         except Exception as e:
             self.session.rollback()
             raise IndexError(f"Something went wrong when trying to get video: {e}")
-        
+            return None
 
 if __name__ == "__main__":
     db = SqliteDB()

@@ -8,32 +8,39 @@ import re
 
 class Monitor(ABC):
     """Base class for platform-specific monitors"""
-    def __init__(self, config: Dict):
-        self.config = config
-        self.db = SqliteDB()  # Use existing database connection
-        
-    @abstractmethod
-    def get_channel_info(self, channel_id: str) -> Dict:
-        """Get channel metadata"""
+    def __init__(self):
         pass
     
     @abstractmethod
-    def get_latest_videos(self, channel_id: str, max_results: int = 10, until_date: Optional[datetime] = None) -> List[Video]:
-        """Get latest videos from channel"""
-        pass
-    
-    
-    def process_new_videos(self, channel_id: str) -> List[Video]:
-        """Get and process new videos, comparing with database"""
-        latest_videos = self.get_latest_videos(channel_id)
-        new_videos = []
-        
-        for video in latest_videos:
-            if not self.db.video_exists(video.video_id):
-                new_videos.append(video)
-                
-        return new_videos
+    def _get_latest_videos(self, 
+        handle: str, # channel handle/user 
+        max_results: int = 10, 
+        until_date: Optional[datetime] = None # no later than this date
+    ) -> List[Video]:
+        """Get latest videos from a single channel. 
 
+        Args:
+            channel_id (str): The channel ID or handle to fetch videos from
+            max_results (int, optional): Maximum number of videos to return. Defaults to 5.
+            until_date (datetime, optional): Only return videos published before this date. Defaults to None.
+
+        Returns:
+            List[Video]: List of Video objects representing the latest videos from the channel
+        """
+        pass
+    
+    
+    def _exists_in_database(self, video_id):
+        """Whether the video exists in the database"""
+        return self.db.get_video(video_id=video_id) is not None
+
+
+    def pull(self):
+        """Pull from the platform the latest videos and add them to the database"""
+        videos = self._get_latest_videos()
+        for video in videos:
+            if not self._exists_in_database(video.video_id):
+                self.db.add_video(video)
 
 class YoutubeMonitor(Monitor):
     def __init__(self, config: Dict):
@@ -44,96 +51,54 @@ class YoutubeMonitor(Monitor):
             'force_generic_extractor': False
         }
     
-    def get_channel_info(self, channel_id: str) -> Dict:
-        with YoutubeDL(self.ydl_opts) as ydl:
-            try:
-                channel_url = f"https://www.youtube.com/channel/{channel_id}"
-                info = ydl.extract_info(channel_url, download=False)
-                return {
-                    'snippet': {
-                        'title': info.get('channel'),
-                        'description': info.get('description')
-                    },
-                    'statistics': {
-                        'subscriberCount': info.get('subscriber_count'),
-                        'videoCount': info.get('video_count')
-                    }
-                }
-            except Exception as e:
-                print(f"Error getting channel info: {e}")
-                return None
-    
-    def get_channel_id_from_handle(self, handle: str) -> Optional[str]:
-        """Convert a YouTube handle/username to a channel ID"""
-        handle = handle.lstrip('@')
-        with YoutubeDL(self.ydl_opts) as ydl:
-            try:
-                # Try with @handle first
-                url = f"https://www.youtube.com/@{handle}"
-                info = ydl.extract_info(url, download=False)
-                # Extract channel ID from channel_url
-                channel_url = info.get('channel_url', '')
-                channel_id = re.search(r'channel/(UC[\w-]+)', channel_url)
-                if channel_id:
-                    return channel_id.group(1)
-            except:
-                return None
-        return None
 
-    def get_latest_videos(self, channel_identifier: str, max_results: int = 10, until_date: Optional[datetime] = None) -> List[Video]:
-        """Get latest videos from a channel using yt-dlp"""
-        # Handle channel identifier
-        if channel_identifier.startswith('@') or not channel_identifier.startswith('UC'):
-            channel_id = self.get_channel_id_from_handle(channel_identifier)
-            if not channel_id:
-                raise ValueError(f"Could not find channel ID for handle: {channel_identifier}")
+    def _get_latest_videos(self, channel_handle, until_date=None, max_results=50):
+        """
+        Fetches latest videos from a YouTube channel (by handle) until a specified date.
+
+        Parameters:
+            - channel_handle: YouTube channel handle (e.g., "@ChannelHandle")
+            - until_date: Cutoff date in "YYYYMMDD" format (e.g., "20240101" for Jan 1, 2024)
+            - max_results: Maximum number of videos to check (default: 50)
+
+        Returns:
+            - List of videos uploaded until the given date.
+        """
+        if until_date is None:
+            until_date = datetime.now().strftime("%Y%m%d")
+            max_results = 1 # only get one latest video
         else:
-            channel_id = channel_identifier
-
-        # Set up yt-dlp options for playlist extraction
-        playlist_opts = {
-            **self.ydl_opts,
-            'playlistend': max_results
+            until_date = datetime.strptime(until_date, "%Y%m%d")
+        
+        url = f"https://www.youtube.com/{channel_handle}"
+        ydl_opts = {
+            'quiet': True,
+            'extract_flat': True,  # Extract metadata without downloading
+            'playlistend': max_results  # Fetch up to `max_results` videos
         }
 
-        videos = []
-        with YoutubeDL(playlist_opts) as ydl:
-            try:
-                # Get channel uploads playlist
-                channel_url = f"https://www.youtube.com/channel/{channel_id}/videos"
-                info = ydl.extract_info(channel_url, download=False)
-                
-                if not info.get('entries'):
-                    return videos
+        filtered_videos = []
+        with YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
 
-                for entry in info['entries']:
-                    # Convert timestamp to datetime
-                    upload_date = datetime.strptime(
-                        str(entry.get('timestamp')), 
-                        '%Y%m%d'
-                    ).replace(tzinfo=timezone.utc)
-                    
-                    # Skip if video is newer than until_date
-                    if until_date and upload_date > until_date:
-                        continue
-                    
-                    video = YoutubeVideo(
-                        video_id=entry['id'],
-                        title=entry['title'],
-                        channel_id=channel_id,
-                        channel=entry.get('channel', ''),
-                        upload_date=upload_date
-                    )
-                    videos.append(video)
-                    
-                    if len(videos) >= max_results:
-                        break
-                        
-                return videos
-            except Exception as e:
-                print(f"Error getting videos: {e}")
-                return []
+            for video in info['entries']:
+                if video.get('upload_date') > until_date:
+                    continue
 
+                filtered_videos.append(
+                    Video.from_dict({
+                        "video_id": video['id'],
+                        'title': video['title'],
+                        'channel': video['channel'],
+                        'channel_id': video['channel_id'],
+                        'upload_date': video['upload_date'],
+                    })
+                )
+
+            return filtered_videos
+
+
+    
 
 class BilibiliMonitor(Monitor):
     def __init__(self, config: Dict):
