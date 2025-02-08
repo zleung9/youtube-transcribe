@@ -28,7 +28,7 @@ def main():
     
     transcriber = Transcriber(model_name="base")
 
-    if args.transcribe:
+    if args.transcribe and not video.transcript:
         print(f"Transcribing video")
         _ = transcriber.transcribe(video)
     

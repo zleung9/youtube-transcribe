@@ -41,6 +41,8 @@ class Monitor(ABC):
         for video in videos:
             if not self._exists_in_database(video.video_id):
                 self.db.add_video(video)
+        
+        return videos
 
 class YoutubeMonitor(Monitor):
     def __init__(self, config: Dict):

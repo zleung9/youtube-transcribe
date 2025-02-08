@@ -12,6 +12,16 @@ from yourtube import SqliteDB, Video, Transcriber, YoutubeMonitor, BilibiliMonit
 from yourtube.utils import get_download_dir, load_config
 import asyncio
 
+REPORT_TEMPLATE_SINGLE = lambda title, url, channel, upload_date, summary: f"""
+## [{title}]({url})
+**Channel:** {channel}
+**Published:** {upload_date.strftime('%Y-%m-%d %H:%M:%S')}
+
+{summary}
+#########
+
+
+"""
 
 class Reporter:
     def __init__(self, config: Dict):
@@ -47,22 +57,12 @@ class Reporter:
         # Construct YouTube URL
         video_url = f"https://youtube.com/watch?v={video.video_id}"
 
-        return f"""
-## [{video.title}]({video_url})
-**Channel:** {video.channel}
-**Published:** {video.upload_date.strftime('%Y-%m-%d %H:%M:%S')}
-
-{summary_content}
-"""
+        return REPORT_TEMPLATE_SINGLE(video.title, video_url, video.channel, video.upload_date, summary_content)
 
     def _generate_report_content(self, videos: List[Video]) -> str:
         """Generate full report content from list of videos"""
         if not videos:
-            return """
-## Daily Video Update Report
-
-No new videos available today.
-"""
+            return "## Daily Video Update Report ## \nNo new videos available today."
         summaries = [self._generate_video_summary(video) for video in videos]
         return "\n\n".join(summaries)
 
@@ -106,23 +106,31 @@ No new videos available today.
         new_videos = []
         
         # Check each platform and process all channels for that platform
-        for platform, monitor in self.monitors.items():
-            channel_videos = monitor.process_new_videos()
-            new_videos.extend(channel_videos)
+        new_videos = [video for monitor in self.monitors.values() for video in monitor.pull()]
         
-        if new_videos:
-            # Process all videos using a single Transcriber instance
-            transcriber = Transcriber()
-            try:
-                for video in new_videos:
-                    self._process_video(video, transcriber)
+        if not new_videos:
+            print("No new videos found")
+            return
+        
+        # Process all videos using a single Transcriber instance
+        transcriber = Transcriber()
+        for video in new_videos:
+            if not video.transcript:
+                transcriber.transcribe(video)
+            if not video.summary:
+                transcriber.summarize(video)
+        
+        for video in new_videos:
+            self._process_video(video, transcriber)
                 
-                # Generate and send report
-                await self._send_update_report(new_videos)
-            finally:
-                # Ensure model is turned off when finished
-                transcriber.release_model()
+        # Generate and send report
+        await self._send_update_report(new_videos)
+        
+        # Ensure model is turned off when finished
+        transcriber.release_model()
+
     
+
     def _process_video(self, video: Video, transcriber: Transcriber):
         """Process a single video"""
         if isinstance(video, Video):
@@ -160,6 +168,7 @@ No new videos available today.
         while True:
             schedule.run_pending()
             time.sleep(60)  # Check every minute
+
 
 
 if __name__ == "__main__":

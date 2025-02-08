@@ -144,6 +144,8 @@ class Transcriber:
         Returns:
             int: 0 on success, 1 on failure
         """
+        if not self.model:
+            self.load_model()
         
         self.load_video(video)
         print("Detecting language...")
@@ -197,6 +199,7 @@ class Transcriber:
         """
         try:
             del self.model
+            self.model = None
             print("Model memory released")
         except Exception as e:
             print(f"Error releasing model: {e}")
