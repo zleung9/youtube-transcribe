@@ -1,22 +1,18 @@
-from abc import ABC, abstractmethod
 from typing import List, Dict, Optional
-from datetime import datetime, timezone
-from yourtube import SqliteDB, Video, YoutubeVideo
-from yt_dlp import YoutubeDL
-import re
+from datetime import datetime
+from yourtube import Video
+from yourtube.utils import get_download_dir, convert_vtt_to_srt
+import yt_dlp
+import os
+import json
 
 
-class Monitor(ABC):
+class Monitor:
     """Base class for platform-specific monitors"""
     def __init__(self):
-        pass
+        self._default_path = get_download_dir()
     
-    @abstractmethod
-    def _get_latest_videos(self, 
-        handle: str, # channel handle/user 
-        max_results: int = 10, 
-        until_date: Optional[datetime] = None # no later than this date
-    ) -> List[Video]:
+    def check_updates(self, handle: str, max_results: int = 10, until_date: str="", end_date: str="") -> List[Video]:
         """Get latest videos from a single channel. 
 
         Args:
@@ -25,28 +21,19 @@ class Monitor(ABC):
             until_date (datetime, optional): Only return videos published before this date. Defaults to None.
 
         Returns:
-            List[Video]: List of Video objects representing the latest videos from the channel
+            List[video_id]: List of video ids representing the latest videos from the channel
         """
-        pass
+        raise NotImplementedError
     
-    
-    def _exists_in_database(self, video_id):
-        """Whether the video exists in the database"""
-        return self.db.get_video(video_id=video_id) is not None
+    def download(self, video_id: str):
+        """Download the video from the platform"""
+        raise NotImplementedError
 
 
-    def pull(self):
-        """Pull from the platform the latest videos and add them to the database"""
-        videos = self._get_latest_videos()
-        for video in videos:
-            if not self._exists_in_database(video.video_id):
-                self.db.add_video(video)
-        
-        return videos
 
 class YoutubeMonitor(Monitor):
-    def __init__(self, config: Dict):
-        super().__init__(config)
+    def __init__(self):
+        super().__init__()
         self.ydl_opts = {
             'quiet': True,
             'extract_flat': True,
@@ -54,9 +41,9 @@ class YoutubeMonitor(Monitor):
         }
     
 
-    def _get_latest_videos(self, channel_handle, until_date=None, max_results=50):
+    def check_updates(self, channel_handle, max_results=1):
         """
-        Fetches latest videos from a YouTube channel (by handle) until a specified date.
+        Fetches latest videos from a YouTube channel (by handle) from a given date span.
 
         Parameters:
             - channel_handle: YouTube channel handle (e.g., "@ChannelHandle")
@@ -64,41 +51,115 @@ class YoutubeMonitor(Monitor):
             - max_results: Maximum number of videos to check (default: 50)
 
         Returns:
-            - List of videos uploaded until the given date.
+            - List of video ids uploaded until the given date.
         """
-        if until_date is None:
-            until_date = datetime.now().strftime("%Y%m%d")
-            max_results = 1 # only get one latest video
-        else:
-            until_date = datetime.strptime(until_date, "%Y%m%d")
         
-        url = f"https://www.youtube.com/{channel_handle}"
+        url = f"https://www.youtube.com/@{channel_handle}"
         ydl_opts = {
             'quiet': True,
             'extract_flat': True,  # Extract metadata without downloading
             'playlistend': max_results  # Fetch up to `max_results` videos
         }
 
-        filtered_videos = []
-        with YoutubeDL(ydl_opts) as ydl:
+        video_ids = []
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
+        
+        video_entries = info['entries']
+        if not video_entries[0].get("url", None): # some channels have two layers of entries
+                video_entries = video_entries[0]['entries']
 
-            for video in info['entries']:
-                if video.get('upload_date') > until_date:
-                    continue
+        for video in video_entries:
+            video_ids.append(video['id'])
 
-                filtered_videos.append(
-                    Video.from_dict({
-                        "video_id": video['id'],
-                        'title': video['title'],
-                        'channel': video['channel'],
-                        'channel_id': video['channel_id'],
-                        'upload_date': video['upload_date'],
-                    })
+        return video_ids
+
+
+    def download(self, video_id, download_video=False, format='worst'):
+        '''
+        Download a YouTube video using yt-dlp library.
+        Parameters:
+        - video_id: str, YouTube video ID
+        - download: bool, whether to download the video
+        - path: str, path to save the video
+        - quality: str, quality of the video to download
+        Returns:
+        - metadata: dict, metadata of the video
+        '''
+        
+        # load info either from local json or downlaod
+        json_path = os.path.join(self._default_path, f"{video_id}.info.json")
+
+        ydl_opts = {
+            'quiet': False,
+            'extract_flat': True,
+            'outtmpl': os.path.join(self._default_path, f'{video_id}.%(ext)s'),
+            'format': format,
+            'writeinfojson': True,
+            'writesubtitles': True,
+            'writeautomaticsub': True,  # Enable auto-generated subtitles if manual ones aren't available'
+            'subtitlesformat': 'vtt',
+            'subtitleslangs': ['en', "zh"]
+        }
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            try:
+                info = ydl.extract_info(
+                    url=f"https://www.youtube.com/watch?v={video_id}", 
+                    download=download_video
                 )
+            except yt_dlp.utils.DownloadError as e:
+                return None
+        video_title = info.get('title', 'Untitled')
+        video_ext = info['ext']
 
-            return filtered_videos
+        # get the real language
+        try:
+            _ = open(json_path.replace('.info.json', '.zh.srt'), 'r')
+            language = 'zh'
+        except FileNotFoundError:
+            try:
+                _ = open(json_path.replace('.info.json', '.en.srt'), 'r')
+                language = 'en'
+            except FileNotFoundError:
+                language = info.get("language", None)
+        
+        # Set the actual video path with the correct extension
+        srt_path = os.path.join(self._default_path, f'{video_id}.{language}.srt')
+        if not os.path.exists(srt_path):
+            srt_path = None
+            vtt_path = os.path.join(self._default_path, f'{video_id}.{language}.vtt')
+            if not os.path.exists(vtt_path):
+                vtt_path = None
+            else:
+                try:
+                    srt_path = convert_vtt_to_srt(vtt_path)
+                    print(f"vtt converted to srt: {srt_path}")
+                except FileNotFoundError:
+                    srt_path = None
+                    # even vtt is not available, we still need to keep path, usually this is the case for "zh"
+                    print("No subtitles for this video, transcribe it please")
+        
+        video_path = os.path.join(self._default_path, f'{video_id}.{video_ext}')
+        if not os.path.exists(video_path):
+            video_path = None
 
+        # rename paths    
+        video = Video.from_dict({
+            "video_id": video_id,
+            'title': video_title,
+            'channel': info.get('channel', ""),
+            'channel_id': info.get('channel_id', ""),  # Added channel_id extraction
+            'language': language,
+            'upload_date': info.get('upload_date'),
+            'transcript': 1 if srt_path else 0
+        })
+
+        # Convert upload_date string to datetime object
+        if isinstance(video.upload_date, str):
+            video.upload_date = datetime.strptime(video.upload_date, '%Y%m%d')
+
+        return video
 
     
 
@@ -112,3 +173,12 @@ class BilibiliMonitor(Monitor):
     def get_latest_videos(self, channel_id: str, max_results: int = 10, until_date: Optional[datetime] = None) -> List[Video]:
         pass
         
+
+if __name__ == "__main__":
+    monitor = YoutubeMonitor()
+    video_ids = monitor.check_updates("DavidOndrej", max_results=2)
+    print(video_ids)
+    for id in video_ids[1:]:
+        video = monitor.download(id, download_video=True)
+        print(video)
+        break
