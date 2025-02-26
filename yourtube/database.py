@@ -26,12 +26,28 @@ class Database(ABC):
 
     
     def update_video(self, video: Video):
-        """Refresh database with new video information."""
-        existing_video = self.get_video(video)
-        if existing_video:
-            self.delete_video(existing_video)
-        self.add_video(video)
-        return True
+        """Update an existing video in the database without deleting/re-adding."""
+        try:
+            # Get existing video
+            existing_video = self.get_video(video_id=video.video_id)
+            
+            if existing_video:
+                # Get attributes from the new video object, excluding 'id'
+                update_data = video.to_dict()
+                update_data.pop('id', None)  # Remove the id field
+                
+                # Use the Video's update method with filtered attributes
+                existing_video.update(**update_data)
+                
+                # Commit the changes
+                self.session.commit()
+                return True
+            else:
+                # If video doesn't exist, add it
+                return self.add_video(video)
+        except Exception as e:
+            self.session.rollback()
+            raise Exception(f"Error updating video: {str(e)}")
     
     @abstractmethod
     def _add_video(self, video: Video):
