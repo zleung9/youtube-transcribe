@@ -1,12 +1,11 @@
 # transcriber.py
-import argparse
 import os
 import whisper
 import litellm
 import ffmpeg
-from yourtube import Video, SqliteDB
-from yourtube.utils import load_config, get_device, get_download_dir, get_llm_info
-from yourtube.prompts import prompt_process_text, prompt_summarize
+from yourtube import Video
+from yourtube.utils import get_device, get_download_dir, get_llm_info
+from yourtube.prompts import prompt_summarize
 
 
 def format_timestamp(seconds):
@@ -126,11 +125,12 @@ class Transcriber:
             video (Video): Video object containing video information
         """
         self._video = video
+        language = video.language
 
         self._video_path = os.path.join(self.working_dir, f"{video.video_id}.mp4")
-        self._srt_path = self._video_path.replace(".mp4", ".srt")
-        self._txt_path = self._video_path.replace(".mp4", ".txt")
-        self._md_path = self._video_path.replace(".mp4", ".md")
+        self._srt_path = self._video_path.replace(".mp4", f".{language}.srt")
+        self._txt_path = self._video_path.replace(".mp4", f".{language}.txt")
+        self._md_path = self._video_path.replace(".mp4", f".{language}.md")
 
 
     def transcribe(self, video: Video):
