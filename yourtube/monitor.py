@@ -1,7 +1,7 @@
 from typing import List, Dict, Optional
 from datetime import datetime
 from yourtube import Video
-from yourtube.utils import get_download_dir, convert_vtt_to_srt
+from yourtube.utils import get_download_dir, convert_vtt_to_srt, download_youtube_video
 import yt_dlp
 import os
 import json
@@ -75,74 +75,58 @@ class YoutubeMonitor(Monitor):
         return video_ids
 
 
-    def download(self, video_id, download_video=False, format='worst'):
+    def download(self, video_id, format='worst'):
         '''
         Download a YouTube video using yt-dlp library.
+        
         Parameters:
-        - video_id: str, YouTube video ID
-        - download: bool, whether to download the video
-        - path: str, path to save the video
-        - quality: str, quality of the video to download
+            - video_id: str, YouTube video ID
+            - format: str, format/quality specification for yt-dlp (default: 'worst')
+            
         Returns:
-        - metadata: dict, metadata of the video
+            - Video: Video object containing metadata and file paths
+            - None: If download fails
         '''
         
         # load info either from local json or downlaod
-        json_path = os.path.join(self._default_path, f"{video_id}.info.json")
-
-        ydl_opts = {
-            'quiet': False,
-            'extract_flat': True,
-            'outtmpl': os.path.join(self._default_path, f'{video_id}.%(ext)s'),
-            'format': format,
-            'writeinfojson': True,
-            'writesubtitles': True,
-            'writeautomaticsub': True,  # Enable auto-generated subtitles if manual ones aren't available'
-            'subtitlesformat': 'vtt',
-            'subtitleslangs': ['en', "zh"]
-        }
-
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            try:
-                info = ydl.extract_info(
-                    url=f"https://www.youtube.com/watch?v={video_id}", 
-                    download=download_video
-                )
-            except yt_dlp.utils.DownloadError as e:
-                return None
+        info = download_youtube_video(path=self._default_path, video_id=video_id, video=False)
         video_title = info.get('title', 'Untitled')
         video_ext = info['ext']
 
-        # get the real language
+        # get the srt path
         try:
-            _ = open(json_path.replace('.info.json', '.zh.srt'), 'r')
             language = 'zh'
-        except FileNotFoundError:
+            srt_path = os.path.join(self._default_path, f'{video_id}.{language}.srt')
+            assert os.path.exists(srt_path)
+        except AssertionError:
             try:
-                _ = open(json_path.replace('.info.json', '.en.srt'), 'r')
                 language = 'en'
-            except FileNotFoundError:
+                srt_path = os.path.join(self._default_path, f'{video_id}.{language}.srt')
+                assert os.path.exists(srt_path)
+            except AssertionError:
                 language = info.get("language", None)
+                srt_path = None
         
-        # Set the actual video path with the correct extension
-        srt_path = os.path.join(self._default_path, f'{video_id}.{language}.srt')
-        if not os.path.exists(srt_path):
-            srt_path = None
+        if not language:
+            _ = download_youtube_video(path=self._default_path, video_id=video_id, format=format, video=True)
+        elif not srt_path:
             vtt_path = os.path.join(self._default_path, f'{video_id}.{language}.vtt')
             if not os.path.exists(vtt_path):
                 vtt_path = None
-            else:
-                try:
-                    srt_path = convert_vtt_to_srt(vtt_path)
-                    print(f"vtt converted to srt: {srt_path}")
-                except FileNotFoundError:
-                    srt_path = None
-                    # even vtt is not available, we still need to keep path, usually this is the case for "zh"
-                    print("No subtitles for this video, transcribe it please")
+                _ = download_youtube_video(path=self._default_path, video_id=video_id, format=format, video=True)
+            assert vtt_path, f"Subtitles not available for {video_id}"
+            srt_path = os.path.join(self._default_path, f'{video_id}.{language}.srt')
+            try:
+                srt_path = convert_vtt_to_srt(vtt_path)
+                print(f"vtt converted to srt: {srt_path}")
+            except FileNotFoundError:
+                srt_path = None
+                # even vtt is not available, we still need to keep path, usually this is the case for "zh"
+                print("No subtitles for this video, transcribe it please")
         
         video_path = os.path.join(self._default_path, f'{video_id}.{video_ext}')
-        if not os.path.exists(video_path):
-            video_path = None
+        if os.path.exists(video_path):
+            os.remove(video_path)  # Delete the video file
 
         # rename paths    
         video = Video.from_dict({
@@ -152,7 +136,7 @@ class YoutubeMonitor(Monitor):
             'channel_id': info.get('channel_id', ""),  # Added channel_id extraction
             'language': language,
             'upload_date': info.get('upload_date'),
-            'transcript': 1 if srt_path else 0
+            'transcript': True if srt_path else False
         })
 
         # Convert upload_date string to datetime object
