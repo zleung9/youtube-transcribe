@@ -141,7 +141,7 @@ def main():
     
     # Add to database
     video.update(**transcriber.metadata) 
-    db.add_video(video)
+    db.update_video(video)
     print(f"Successfully downloaded video: {video.title}")
     
     transcriber.release_model()
