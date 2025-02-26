@@ -1,7 +1,99 @@
 import os
 import argparse
-from yourtube import Video, YoutubeVideo, SqliteDB, Transcriber
-from yourtube.utils import extract_youtube_id
+from yourtube import SqliteDB, Transcriber
+from yourtube.utils import extract_youtube_id, load_config
+from yourtube.monitor import YoutubeMonitor, BilibiliMonitor
+from yourtube.reporter import Reporter
+from typing import Dict
+import asyncio
+import schedule
+import time
+
+def initialize_monitors(config: Dict) -> Dict:
+    """Initialize monitors for each platform"""
+    monitors = {}
+    platform_monitors = {
+        'youtube': YoutubeMonitor,
+        'bilibili': BilibiliMonitor
+    }
+    for platform in config.get('monitored_platforms', list(platform_monitors.keys())):
+        if platform in platform_monitors:
+            monitors[platform] = platform_monitors[platform](config)
+    return monitors
+
+async def pull_updates(monitors: Dict):
+    """Start monitors on the platforms and pull updates to database"""
+    for monitor in monitors.values():
+        await monitor.pull()
+
+async def process_updates(monitors: Dict):
+        """Check for the latest videos in database and create a report. start_date and end_date are in the format of YYYY-MM-DD"""
+        new_videos = []
+        
+        # Check each platform and process all channels for that platform
+        for monitor in monitors.values():
+            for video_id in monitor.check_updates():
+                video = monitor.download(video_id, download_video=True)
+                new_videos.append(video)
+        
+        if not new_videos:
+            print("No new videos found")
+            return
+        
+        # Process all videos using a single Transcriber instance
+        transcriber = Transcriber()
+        for video in new_videos:
+            if not video.transcript:
+                transcriber.transcribe(video)
+            if not video.summary:
+                transcriber.summarize(video)
+        
+        # Generate and send report
+        
+        # Ensure model is turned off when finished
+        transcriber.release_model()
+
+
+async def run_scheduler(
+        args: argparse.Namespace,
+        run_immediately=True, 
+        daily_time=None,
+        reporter: Reporter=None,
+        monitors: Dict=None,
+        transcriber: Transcriber=None,
+        database: SqliteDB=None
+        ):
+        """
+        Start the scheduling service
+        Args:
+            run_immediately (bool): Whether to run once immediately before starting scheduler
+            daily_time (str): Time to run daily in 24hr format (e.g., "09:00")
+        """
+        if run_immediately:
+            print("Running immediate check...")
+            for platform, monitor in monitors.items():
+                new_video_ids =await monitor.check_updates()
+                for video_id in new_video_ids:
+                    video = database.get_video(video_id=video_id)
+                    if video and not args.force:
+                        continue
+                    video = monitor.download(video_id, download_video=True, download_json=True)
+                    database.add_video(video)
+            print("Initial check completed.")
+
+        # Schedule updates based on configuration
+        if daily_time:
+            # Schedule to run at specific time daily
+            print(f"Scheduling daily check at {daily_time}")
+            schedule.every().day.at(daily_time).do(
+                lambda: asyncio.run(self.process_updates())
+            )
+        
+        # Run the scheduler
+        print("Scheduler started...")
+        while True:
+            schedule.run_pending()
+            time.sleep(60)  # Check every minute
 
 
 def main():
@@ -12,9 +104,17 @@ def main():
     parser.add_argument("-s", "--summarize", action="store_true", default=False, help="Whether to summarize the transcription.")
     parser.add_argument("-f", "--force", action="store_true", help="Force to update video even if it exists.")
     parser.add_argument("-v", "--verbose", action="store_true", default=False, help="Display the summary in the terminal after processing.")
+    # parser.add_argument("-r", "--report", action="store_true", default=False, help="Create a report of the latest videos.")
+    
+    # load config
+    config = load_config()
 
     args=parser.parse_args()
     db = SqliteDB()
+    monitor = YoutubeMonitor()
+    transcriber = Transcriber()
+    # reporter = Reporter(config=config)
+    
     # Check if video already 
     video_id = extract_youtube_id(args.youtube_url)
     video = db.get_video(video_id=video_id)
@@ -23,14 +123,13 @@ def main():
         return
 
     # Download and transcribe video flow
-    video = YoutubeVideo()
-    video.get(video_id, download_video=True, download_json=True)
-    
-    transcriber = Transcriber(model_name="base")
+    video = monitor.download(video_id)
 
     if args.transcribe and not video.transcript:
         print(f"Transcribing video")
+        transcriber.load_model(model_name="base")
         _ = transcriber.transcribe(video)
+        transcriber.release_model()
     
     if args.process:
         print(f"Processing SRT file.")
