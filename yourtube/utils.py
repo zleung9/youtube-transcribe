@@ -4,13 +4,19 @@ import os
 from webvtt import WebVTT
 import litellm
 import torch
+import yt_dlp
 
 def extract_youtube_id(url):
-    """Extract video ID from a YouTube URL."""
+    """Extract video ID from a YouTube URL. It can be a short URL, long URL, or live URL.
+    Examples:
+    - Regular: https://www.youtube.com/watch?v=ABC123
+    - Short: https://youtu.be/ABC123
+    - Live: https://www.youtube.com/live/ABC123"""
     patterns = [
         r'(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)',
         r'(?:youtube\.com\/embed\/)([\w-]+)',
         r'(?:youtube\.com\/v\/)([\w-]+)',
+        r'(?:youtube\.com\/live\/)([\w-]+)(?:\?|$)'  # Added pattern for live URLs
     ]
     
     for pattern in patterns:
@@ -107,22 +113,6 @@ def rename_title(video_title, config):
     return title
 
 
-def extract_youtube_id(url):
-    """Extract video ID from a YouTube URL."""
-    patterns = [
-        r'(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)',
-        r'(?:youtube\.com\/embed\/)([\w-]+)',
-        r'(?:youtube\.com\/v\/)([\w-]+)',
-    ]
-    
-    for pattern in patterns:
-        match = re.search(pattern, url)
-        if match:
-            return match.group(1)
-    return None
-
-
-
 def get_download_dir(path="downloads/"):
     package_root = os.path.dirname(
         os.path.dirname(
@@ -131,3 +121,39 @@ def get_download_dir(path="downloads/"):
     )
 
     return os.path.join(package_root, path)
+
+
+def download_youtube_video(
+        path=get_download_dir(),  # Default download path
+        video_id=None, # Video ID
+        format="worst", # The video quality to download
+        video=False, # weather download the actual video file
+        json=True,
+        subtitles=True,
+        auto_subtitles=True,
+        langs=["en", "zh"]
+    ):
+    
+    ydl_opts = {
+            'quiet': False,
+            'extract_flat': True,
+            'outtmpl': os.path.join(path, f'{video_id}.%(ext)s'),
+            'format': format,
+            'writeinfojson': json,
+            'writesubtitles': subtitles,
+            'writeautomaticsub': auto_subtitles,  # Enable auto-generated subtitles if manual ones aren't available'
+            'subtitlesformat': 'srt/vtt',
+            'subtitleslangs': langs,
+            'skip_download': not video
+        }
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        try:
+            info = ydl.extract_info(
+                url=f"https://www.youtube.com/watch?v={video_id}", 
+                download=True
+            )
+        except yt_dlp.utils.DownloadError as e:
+            return None
+    
+    return info
