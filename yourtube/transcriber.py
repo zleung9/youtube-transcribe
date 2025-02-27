@@ -186,6 +186,14 @@ class Transcriber:
             with open(self._srt_path, "w", encoding="utf-8") as srt_file:
                 srt_file.write(srt_content)
             print(f"Transcription saved to: {self._srt_path}")
+            
+            # delete the video file after transcribing
+            for suffix in ['mp4', 'wav']:
+                try: 
+                    os.remove(os.path.join(self.working_dir, f'{video.video_id}.{suffix}'))
+                except FileNotFoundError:
+                    continue
+            
             return srt_content
         
         except Exception as e:
