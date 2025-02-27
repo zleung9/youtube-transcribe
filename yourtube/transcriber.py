@@ -125,12 +125,12 @@ class Transcriber:
             video (Video): Video object containing video information
         """
         self._video = video
-        language = video.language
+        self._language = video.language
 
         self._video_path = os.path.join(self.working_dir, f"{video.video_id}.mp4")
-        self._srt_path = self._video_path.replace(".mp4", f".{language}.srt")
-        self._txt_path = self._video_path.replace(".mp4", f".{language}.txt")
-        self._md_path = self._video_path.replace(".mp4", f".{language}.md")
+        self._srt_path = self._video_path.replace(".mp4", f".{self._language}.srt")
+        self._txt_path = self._video_path.replace(".mp4", f".{self._language}.txt")
+        self._md_path = self._video_path.replace(".mp4", f".{self._language}.md")
 
 
     def transcribe(self, video: Video):
