@@ -12,6 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from yourtube import SqliteDB, Transcriber, Video
 from yourtube.utils import extract_youtube_id, get_download_dir
 from yourtube.monitor import YoutubeMonitor
+from yourtube.main import process_video_pipeline
 
 app = Flask(__name__)
 
@@ -344,44 +345,22 @@ def video_content(video_id):
 @app.route('/process-video', methods=['POST'])
 def process_video(force=True, transcribe=True, process=True, summarize=True):
     
+    url = request.json.get('url')
+    if not url:
+        return jsonify({'error': 'No URL provided'}), 400
+    
     try:
-        url = request.json.get('url')
-        if not url:
-            return jsonify({'error': 'No URL provided'}), 400
+        process_video_pipeline(
+            url=url,
+            database=db,
+            monitor=monitor,
+            transcriber=transcriber,
+            force=force,
+            transcribe=transcribe,
+            process=process,
+            summarize=summarize
+        )
 
-        video_id = extract_youtube_id(url)
-        if not video_id:
-            return jsonify({'error': 'Invalid YouTube URL'}), 400
-
-        # Call the processing pipeline
-
-        video = db.get_video(video_id=video_id)
-        if video and not force:
-            print(f"Video {video_id} already processed")
-            return
-
-        # Download and transcribe video flow
-        video = monitor.download(video_id)
-
-        if transcribe and not video.transcript:
-            print(f"Transcribing video")
-            transcriber.load_model(model_name="base")
-            _ = transcriber.transcribe(video)
-            transcriber.release_model()
-        
-        if process:
-            print(f"Processing SRT file.")
-            _ = transcriber.process(video)
-
-        if summarize:
-            print(f"Summarizing transcription.")
-            _ = transcriber.summarize(video, title="anthropic-claude-3.5-sonnet")
-        
-        # Add to database
-        video.update(**transcriber.metadata) 
-        db.update_video(video)
-        print(f"Successfully downloaded video: {video.title}")
-        
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
