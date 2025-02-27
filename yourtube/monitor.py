@@ -94,22 +94,26 @@ class YoutubeMonitor(Monitor):
         video_ext = info['ext']
 
         # get the srt path
-        try:
-            language = 'zh'
+        language = info.get("language",None)
+        if language:
             srt_path = os.path.join(self._default_path, f'{video_id}.{language}.srt')
-            assert os.path.exists(srt_path)
-        except AssertionError:
-            try:
-                language = 'en'
-                srt_path = os.path.join(self._default_path, f'{video_id}.{language}.srt')
-                assert os.path.exists(srt_path)
-            except AssertionError:
-                language = info.get("language", None)
+            if not os.path.exists(srt_path):
                 srt_path = None
+        else:
+            vtt_path = os.path.join(self._default_path, f'{video_id}.en.vtt')
+            if os.path.exists(vtt_path):
+                language = 'en'
+            else:
+                vtt_path = os.path.join(self._default_path, f'{video_id}.zh.vtt')
+                if os.path.exists(vtt_path):
+                    language = 'zh'
+                else:
+                    language = None
+                    vtt_path = None
+                    _ = download_youtube_video(path=self._default_path, video_id=video_id, format=format, video=True)
+
         
-        if not language:
-            _ = download_youtube_video(path=self._default_path, video_id=video_id, format=format, video=True)
-        elif not srt_path:
+        if not srt_path:
             vtt_path = os.path.join(self._default_path, f'{video_id}.{language}.vtt')
             if not os.path.exists(vtt_path):
                 vtt_path = None
@@ -142,6 +146,9 @@ class YoutubeMonitor(Monitor):
         # Convert upload_date string to datetime object
         if isinstance(video.upload_date, str):
             video.upload_date = datetime.strptime(video.upload_date, '%Y%m%d')
+
+        # Update process date
+        video.process_date = datetime.now()
 
         return video
 
