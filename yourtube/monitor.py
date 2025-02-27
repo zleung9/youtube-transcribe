@@ -91,46 +91,24 @@ class YoutubeMonitor(Monitor):
         # load info either from local json or downlaod
         info = download_youtube_video(path=self._default_path, video_id=video_id, video=False)
         video_title = info.get('title', 'Untitled')
-        video_ext = info['ext']
 
         # get the srt path
-        language = info.get("language",None)
-        if language:
-            srt_path = os.path.join(self._default_path, f'{video_id}.{language}.srt')
-            if not os.path.exists(srt_path):
-                srt_path = None
-        else:
-            vtt_path = os.path.join(self._default_path, f'{video_id}.en.vtt')
-            if os.path.exists(vtt_path):
-                language = 'en'
-            else:
-                vtt_path = os.path.join(self._default_path, f'{video_id}.zh.vtt')
-                if os.path.exists(vtt_path):
-                    language = 'zh'
-                else:
-                    language = None
-                    vtt_path = None
-                    _ = download_youtube_video(path=self._default_path, video_id=video_id, format=format, video=True)
-
-        
-        if not srt_path:
+        language = info.get("language")
+        if not language:
+            language = "zh"
+        srt_path = os.path.join(self._default_path, f'{video_id}.{language}.srt')
+        if not os.path.exists(srt_path):
+            srt_path = None
             vtt_path = os.path.join(self._default_path, f'{video_id}.{language}.vtt')
-            if not os.path.exists(vtt_path):
-                vtt_path = None
-                _ = download_youtube_video(path=self._default_path, video_id=video_id, format=format, video=True)
-            assert vtt_path, f"Subtitles not available for {video_id}"
-            srt_path = os.path.join(self._default_path, f'{video_id}.{language}.srt')
             try:
                 srt_path = convert_vtt_to_srt(vtt_path)
                 print(f"vtt converted to srt: {srt_path}")
             except FileNotFoundError:
                 srt_path = None
-                # even vtt is not available, we still need to keep path, usually this is the case for "zh"
+                vtt_path = None
+                _ = download_youtube_video(path=self._default_path, video_id=video_id, format=format, video=True)
                 print("No subtitles for this video, transcribe it please")
-        
-        video_path = os.path.join(self._default_path, f'{video_id}.{video_ext}')
-        if os.path.exists(video_path):
-            os.remove(video_path)  # Delete the video file
+
 
         # rename paths    
         video = Video.from_dict({
