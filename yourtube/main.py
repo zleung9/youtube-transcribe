@@ -86,7 +86,7 @@ async def run_scheduler(
             # Schedule to run at specific time daily
             print(f"Scheduling daily check at {daily_time}")
             schedule.every().day.at(daily_time).do(
-                lambda: asyncio.run(self.process_updates())
+                lambda: asyncio.run(process_updates())
             )
         
         # Run the scheduler
@@ -95,6 +95,40 @@ async def run_scheduler(
             schedule.run_pending()
             time.sleep(60)  # Check every minute
 
+def process_video_pipeline(url, database, monitor, transcriber, transcribe=False, process=False, summarize=False, force=False):
+
+    video_id = extract_youtube_id(url)
+    video = database.get_video(video_id=video_id)
+    if video and not force:
+        print(f"Video {video_id} already processed")
+        return
+
+    # Download and transcribe video flow
+    video = monitor.download(video_id)
+
+    if transcribe and not video.transcript:
+
+        print(f"Transcribing video")
+        transcriber.load_model(model_name="base")
+        _ = transcriber.transcribe(video)
+        transcriber.release_model()
+    
+    if process:
+        print(f"Processing SRT file.")
+        _ = transcriber.process(video)
+
+    if summarize:
+        print(f"Summarizing transcription.")
+        _ = transcriber.summarize(video, title="anthropic-claude-3.5-sonnet")
+    
+    # Add to database
+    video.update(**transcriber.metadata) 
+    database.update_video(video)
+    print(f"Successfully downloaded video: {video.title}")
+    
+    transcriber.release_model()
+
+    return 0
 
 def main():
     parser = argparse.ArgumentParser(description="Transcribe video to SRT format or process an existing SRT file.")
@@ -106,8 +140,6 @@ def main():
     parser.add_argument("-v", "--verbose", action="store_true", default=False, help="Display the summary in the terminal after processing.")
     # parser.add_argument("-r", "--report", action="store_true", default=False, help="Create a report of the latest videos.")
     
-    # load config
-    config = load_config()
 
     args=parser.parse_args()
     db = SqliteDB()
@@ -115,36 +147,16 @@ def main():
     transcriber = Transcriber()
     # reporter = Reporter(config=config)
     
-    # Check if video already 
-    video_id = extract_youtube_id(args.youtube_url)
-    video = db.get_video(video_id=video_id)
-    if video and not args.force:
-        print(f"Video {video_id} already processed")
-        return
-
-    # Download and transcribe video flow
-    video = monitor.download(video_id)
-
-    if args.transcribe and not video.transcript:
-        print(f"Transcribing video")
-        transcriber.load_model(model_name="base")
-        _ = transcriber.transcribe(video)
-        transcriber.release_model()
-    
-    if args.process:
-        print(f"Processing SRT file.")
-        _ = transcriber.process(video)
-
-    if args.summarize:
-        print(f"Summarizing transcription.")
-        _ = transcriber.summarize(video, title="anthropic-claude-3.5-sonnet")
-    
-    # Add to database
-    video.update(**transcriber.metadata) 
-    db.update_video(video)
-    print(f"Successfully downloaded video: {video.title}")
-    
-    transcriber.release_model()
+    process_video_pipeline(
+        database=db,
+        monitor=monitor,
+        transcriber=transcriber,
+        url=args.youtube_url,
+        transcribe=args.transcribe,
+        process=args.process,
+        summarize=args.summarize,
+        force=args.force
+    )
  
 
 if __name__ == "__main__":
