@@ -63,13 +63,17 @@ def load_config():
 
 
 def convert_vtt_to_srt(vtt_path):
-    """Convert VTT file to SRT using webvtt-py."""
+    """Convert VTT file to SRT using webvtt-py and clean the resulting SRT file.
+    Cleaning removes duplicate subtitle entries that have multiple lines of text."""
     # Get the output path by replacing .vtt with .srt
     srt_path = vtt_path.replace('vtt', 'srt')
     
     # Convert VTT to SRT
     vtt = WebVTT().read(vtt_path)
     vtt.save_as_srt(srt_path)
+    
+    # Clean the SRT file to remove duplicate entries
+    clean_srt_file(srt_path, srt_path)
     
     # Optionally remove the VTT file
     # os.remove(vtt_path)
@@ -157,3 +161,44 @@ def download_youtube_video(
             return None
     
     return info
+
+def clean_srt_file(input_file, output_file):
+    """
+    Clean an SRT file by keeping only subtitle entries with a single line of text.
+    Removes entries with two or more lines of text (the duplicates).
+    
+    Args:
+        input_file (str): Path to the input SRT file
+        output_file (str): Path to the output SRT file
+    """
+    with open(input_file, 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    # Split the content by empty lines to get individual subtitle blocks
+    subtitle_blocks = content.split('\n\n')
+    
+    # Keep only subtitle blocks with 4 lines (subtitle number, timestamp, one line of text, and an empty line)
+    cleaned_blocks = []
+    subtitle_count = 1
+    
+    for block in subtitle_blocks:
+        if not block.strip():  # Skip empty blocks
+            continue
+            
+        lines = block.split('\n')
+        
+        # A standard single-line subtitle entry has 3 lines:
+        # 1. Subtitle number
+        # 2. Timestamp
+        # 3. One line of text
+        if len(lines) == 3:
+            # Replace the subtitle number with the new sequence
+            lines[0] = str(subtitle_count)
+            cleaned_blocks.append('\n'.join(lines))
+            subtitle_count += 1
+    
+    # Join the blocks with empty lines and write to output file
+    cleaned_content = '\n\n'.join(cleaned_blocks)
+    
+    with open(output_file, 'w', encoding='utf-8') as f:
+        f.write(cleaned_content)

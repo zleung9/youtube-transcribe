@@ -241,10 +241,6 @@ class Transcriber:
         text_lines = []
         for block in blocks:
             lines = block.strip().split('\n')
-            
-            # Skip blocks with 4 lines (duplicate subtitles)
-            if len(lines) == 4:
-                continue
                 
             # Take the last line from valid blocks
             if len(lines) >= 3:  # Valid blocks have at least 3 lines
