@@ -1,7 +1,7 @@
 import os
 import argparse
-from yourtube import SqliteDB, Transcriber
-from yourtube.utils import extract_youtube_id, load_config
+from yourtube import Database, Transcriber
+from yourtube.utils import extract_youtube_id
 from yourtube.monitor import YoutubeMonitor, BilibiliMonitor
 from yourtube.reporter import Reporter
 from typing import Dict
@@ -61,7 +61,7 @@ async def run_scheduler(
         reporter: Reporter=None,
         monitors: Dict=None,
         transcriber: Transcriber=None,
-        database: SqliteDB=None
+        database: Database=None
         ):
         """
         Start the scheduling service
@@ -142,7 +142,7 @@ def main():
     
 
     args=parser.parse_args()
-    db = SqliteDB()
+    db = Database()
     monitor = YoutubeMonitor()
     transcriber = Transcriber()
     # reporter = Reporter(config=config)

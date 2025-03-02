@@ -9,10 +9,16 @@ from logging.handlers import RotatingFileHandler
 # Add the project root to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from yourtube import SqliteDB, Transcriber, Video
-from yourtube.utils import extract_youtube_id, get_download_dir
+from yourtube import Database, Video, Transcriber
+from yourtube.utils import get_download_dir
 from yourtube.monitor import YoutubeMonitor
 from yourtube.main import process_video_pipeline
+
+# Database setup
+db = Database()
+monitor = YoutubeMonitor()
+transcriber = Transcriber()
+
 
 app = Flask(__name__)
 
@@ -47,10 +53,7 @@ CORS(app, resources={
 })
 app.secret_key = os.urandom(24)
 
-# Database setup
-db = SqliteDB()
-monitor = YoutubeMonitor()
-transcriber = Transcriber()
+
 
 def get_file_path(video_id, file_type, language=None):
     """Get file path based on video ID and type."""

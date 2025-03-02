@@ -5,7 +5,7 @@ from email.mime.multipart import MIMEMultipart
 import aiosmtplib
 import markdown
 import os
-from yourtube import SqliteDB, Video
+from yourtube import Database, Video
 from yourtube.utils import get_download_dir
 import asyncio
 

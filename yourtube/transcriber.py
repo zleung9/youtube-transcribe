@@ -72,7 +72,6 @@ def preprocess_audio(audio_path):
         print(f"Error processing audio: {e}")
         return None
         
-
 class Transcriber:
     def __init__(self, video: Video|None=None, model_name="base"):
         

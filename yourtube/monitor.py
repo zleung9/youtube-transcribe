@@ -4,7 +4,6 @@ from yourtube import Video
 from yourtube.utils import get_download_dir, convert_vtt_to_srt, download_youtube_video
 import yt_dlp
 import os
-import json
 
 
 class Monitor:
