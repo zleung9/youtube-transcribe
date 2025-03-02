@@ -256,13 +256,12 @@ class Transcriber:
         return processed_text
     
 
-    def summarize(self, video: Video, title="openai-gpt-4o", verbose=False):
+    def summarize(self, video: Video, verbose=False):
         """
         Generate a summary of the transcribed content using LLM.
 
         Args:
-            video (Video): Video object containing transcription
-            title (str, optional): Title of the LLM model to use. Defaults to "openai-gpt-4o".
+            video (Video): Video object containing transcription.
             verbose (bool, optional): Whether to print the summary. Defaults to False.
 
         Returns:
@@ -274,7 +273,7 @@ class Transcriber:
             - Saves summary in markdown format (.md)
         """
         self.load_video(video)
-        llm_provider, llm_name, api_key = get_llm_info(title)
+        llm_provider, llm_name, api_key, max_tokens, temperature = get_llm_info("summarizer")
 
         # Read SRT content from the file
         try:
@@ -290,8 +289,8 @@ class Transcriber:
                 messages=[{"role": "user", "content": prompt_summarize(content)}],
                 model=f"{llm_provider}/{llm_name}",
                 api_key=api_key,
-                max_tokens=4096,
-                temperature=0.8
+                max_tokens=max_tokens,
+                temperature=temperature
             )
             summary_text = response.choices[0].message.content
         except Exception as e:

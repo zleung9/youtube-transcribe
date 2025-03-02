@@ -4,19 +4,62 @@
             "title": "openai-gpt-4o",
             "provider": "openai",
             "name": "gpt-4o",
-            "api_key": "your_api_key"
+            "api_key": "your openai api key"
         },
         {   
-            "title": "you_can_add_more_models_as_you_like",
+            "title": "anthropic-claude-3.5-sonnet",
             "provider": "anthropic",
             "name": "claude-3-5-sonnet-20240620",
-            "api_key": "your_api_key"
+            "api_key": "your anthropic api key"
         },
-       {
-            "title": "openrouter-google-xxx",
-            "provider": "openrouter/google",
+        {
+            "title": "some other model",
+            "provider": "some other provider",
             "name": "xxx",
-            "api_key": "your_openrouter_api_key"
+            "api_key": "your_api_key"
         }
+    ],
+    "summarizer": {
+        "model_title": "openai-gpt-4o",
+        "max_tokens": 4096,
+        "temperature": 0.8
+    },
+    "youtube": {
+        "api_key": "YOUR_YOUTUBE_API_KEY",
+        "channels": [
+            {
+                "channel_id": "CHANNEL_ID1",
+                "check_interval": 3600
+            },
+            {
+                "channel_id": "CHANNEL_ID2",
+                "check_interval": 7200
+            }
+        ]
+    },
+    "bilibili": {
+        "api_key": "YOUR_BILIBILI_API_KEY",
+        "channels": [
+            {
+                "channel_id": "CHANNEL_ID1",
+                "check_interval": 3600
+            },
+            {
+                "channel_id": "CHANNEL_ID2",
+                "check_interval": 7200
+            }
+        ]
+    },
+    
+    "email": {
+        "smtp_server": "smtp.gmail.com",
+        "smtp_port": 587,
+        "username": "zleung9@gmail.com",
+        "password": "zkhkliwvwiuqmugd",
+        "recipient": "zleung9@gmail.com"
+    },
+    
+    "monitored_platforms": [
+        "youtube"
     ]
 }

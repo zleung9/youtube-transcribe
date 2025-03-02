@@ -26,15 +26,25 @@ def extract_youtube_id(url):
     return None
 
     
-def get_llm_info(title="openai-gpt-4o"):
+def get_llm_info(agent):
     """Get model from config.json"""
     config = load_config()
+    agent_options = config.get(agent, {})
+    title = agent_options.get("model_title")
+    max_tokens = agent_options.get("max_tokens")
+    temperature = agent_options.get("temperature")
     models = config.get("model", [])
 
     # Find the model with matching title
     for model in models:
         if model.get("title") == title:
-            return model.get("provider"), model.get("name"), model.get("api_key")
+            return (
+                model.get("provider"), 
+                model.get("name"), 
+                model.get("api_key"), 
+                max_tokens,
+                temperature
+            )
             
     raise ValueError(f"Model {title} not found in config.json")
 

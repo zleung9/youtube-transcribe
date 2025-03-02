@@ -119,7 +119,7 @@ def process_video_pipeline(url, database, monitor, transcriber, transcribe=False
 
     if summarize:
         print(f"Summarizing transcription.")
-        _ = transcriber.summarize(video, title="anthropic-claude-3.5-sonnet")
+        _ = transcriber.summarize(video)
     
     # Add to database
     video.update(**transcriber.metadata) 
@@ -140,17 +140,12 @@ def main():
     parser.add_argument("-v", "--verbose", action="store_true", default=False, help="Display the summary in the terminal after processing.")
     # parser.add_argument("-r", "--report", action="store_true", default=False, help="Create a report of the latest videos.")
     
-
     args=parser.parse_args()
-    db = Database()
-    monitor = YoutubeMonitor()
-    transcriber = Transcriber()
-    # reporter = Reporter(config=config)
-    
+
     process_video_pipeline(
-        database=db,
-        monitor=monitor,
-        transcriber=transcriber,
+        database=Database(),
+        monitor=YoutubeMonitor(),
+        transcriber=Transcriber(),
         url=args.youtube_url,
         transcribe=args.transcribe,
         process=args.process,
