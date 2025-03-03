@@ -85,4 +85,4 @@ Most of the time, videos spoken in Chinese doesn't have a subtitle. The app will
 
 
 Here is a simple demo: 
-![demo](https://youtu.be/wu59USebe3g)
+[![Demo Video](https://img.youtube.com/vi/wu59USebe3g/maxresdefault.jpg)](https://youtu.be/wu59USebe3g)
