@@ -25,9 +25,8 @@ dependencies = [
 ]
 
 [project.scripts]
-youtube = "yourtube.main:main"
-ytranscribe = "yourtube.transcriber:main"
-ydownload = "yourtube.downloader:main"
+
+yourtube = "api.run:main"
 
 [tool.setuptools]
-packages = ["yourtube"]
+packages = ["yourtube", "api"]

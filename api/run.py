@@ -383,10 +383,23 @@ def delete_video(video_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-if __name__ == '__main__':
+
+def main():
+    import webbrowser
+    from threading import Timer
+    
+    def open_browser():
+        webbrowser.open('http://127.0.0.1:5000/')
+    
+    # Open browser after a short delay to ensure the server is running
+    Timer(1.5, open_browser).start()
+    
     app.run(
         debug=True, 
         host='127.0.0.1',
         port=5000,
         threaded=True
     )
+
+if __name__ == '__main__':
+    main()
