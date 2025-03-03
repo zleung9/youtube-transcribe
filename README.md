@@ -1,109 +1,88 @@
-# YouTube Video Transcriber
+# YouTube Channel Monitor (Pre-release)
 
-An automated tool that downloads YouTube videos, transcribes them using OpenAI's Whisper, and can generate summaries using OpenAI's GPT API.
+This tool monitors selected YouTube channels and generates summary reports of the latest videos. The key benefit is helping you decide whether to watch videos by reading AI-generated summaries first, saving you valuable time.
 
-## Features
+While there are similar products available (often paid), this solution offers unique values:
+- It provides a daily report of concise summaries of channels' latest update that can replace watching entire videos in many cases. 
+- It can get transcript for videos that does not have a subtitle, e.g. videos in Chinese. If you want to read the summary of a video in Chinese, this is the app you are looking for.
 
-- Automatically downloads new videos from a specified YouTube channel
-- Transcribes videos to SRT format using Whisper
-- Generates summaries or custom analysis using OpenAI's GPT
-- Supports multiple languages (with automatic language detection)
-- CPU and GPU (Apple Silicon) support for transcription
+The application includes a web-based user interface. Email notification functionality is currently under development. For now, videos of interest must be manually added to the database.
 
-## Prerequisites
-
-- Python 3.10 or higher
-- OpenAI API key
-- YouTube Data API key
-- ffmpeg installed on your system
 
 ## Installation
 
 1. Clone this repository:
 ```bash
-git clone [your-repo-url]
+git clone https://github.com/zleung9/youtube-transcribe.git
 cd youtube-transcribe
 ```
 
-2. Install the required packages:
+2. Activate a Python environment using conda or venv:
+
+   **Using conda:**
+   ```bash
+   conda create -n youtube-transcribe python=3.10
+   conda activate youtube-transcribe
+   ```
+
+   **Using venv:**
+   ```bash
+   python -m venv .venv
+   # On Windows
+   .venv\Scripts\activate
+   # On macOS/Linux
+   source .venv/bin/activate
+   ```
+
+
+3. Install the required packages. 
 ```bash
-pip install .
+pip install -e . -r requirements.txt
 ```
 
-3. Set up configuration:
+4. Set up configuration:
 ```bash
 cp config.json.template config.json
 ```
 
-4. Edit `config.json` with your settings:
+Edit `config.json` with your settings:
 ```json
 {
-    "youtube": {
-        "api_key": "YOUR_YOUTUBE_API_KEY",
-        "channel_id": "YOUR_CHANNEL_ID"
+    "model": [
+        {
+            "title": "openai-gpt-4o",
+            "provider": "openai",
+            "name": "gpt-4o",
+            "api_key": "YOUR_OPENAI_API_KEY"
+        },
+        {   
+            "title": "anthropic-claude-3.5-sonnet",
+            "provider": "anthropic",
+            "name": "claude-3-5-sonnet-20240620",
+            "api_key": "YOUR_ANTHROPIC_API_KEY"
+        }
+    ],
+    "summarizer": {
+        "model_title": "anthropic-claude-3.5-sonnet", # by default
+        "max_tokens": 4096,
+        "temperature": 0.8
     },
-    "openai": {
-        "api_key": "YOUR_OPENAI_API_KEY"
-    },
-    "whisper": {
-        "model": "base",
-        "device": "cpu"
-    },
-    "paths": {
-        "downloads": "./downloads",
-        "transcripts": "./transcripts"
-    }
 }
 ```
 
+The configuration file supports multiple AI models for summarization, YouTube channel monitoring with customizable check intervals, and email notification settings. You'll need to provide your own API keys for the services you plan to use.
+
 ## Usage
 
-Run the main script:
+Run the main script. The command is `yourtube` with an "r". 
 ```bash
-python main.py
+yourtube
 ```
 
-This will:
-1. Check for new videos on the specified YouTube channel
-2. Download any new videos
-3. Generate transcriptions in SRT format
-4. Optionally create summaries using OpenAI GPT
+This will open a web app in your default browser. For each video the app will fetch subtitles, summarize the content and store it in a sql database. 
 
-## [TODO]
-1. Email service. 
-2. Chatbot implementation.
-   1. Chat to selected videos.
-   2. Chat to a channel.
-   3. Implement a vector database.
-3. Better audio-to-text transcribe
-   1. use better model
-4. UI improvement
-   1. Sort by processed date
-   2. Remove summary and transcript buttons.
-   3. Make font smaller for the title.
-   4. Dark theme
-5. Web deployment.
-   1. Process multiple requests uncynchronously.
-   2. Website
-   3. Login
-   4. Payment
+Most of the time, videos spoken in Chinese doesn't have a subtitle. The app will download the video and transcribe using Whisper to get the subtitles. The downloaded video is then deleted upon the completion of transcription.
 
-[Version]
 
-## Error Handling
-
-- If `config.json` is missing, the program will prompt you to create one from the template
-- Network errors during download or API calls are handled gracefully
-- Transcription errors are logged and reported
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
+Here is a simple demo: 
+![demo](https://youtu.be/wu59USebe3g)
