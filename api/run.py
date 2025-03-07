@@ -10,12 +10,17 @@ from logging.handlers import RotatingFileHandler
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from yourtube import Database, Video, Transcriber
-from yourtube.utils import get_download_dir
+from yourtube.utils import get_download_dir, get_db_path
 from yourtube.monitor import YoutubeMonitor
 from yourtube.main import process_video_pipeline
 
+DOWNLOAD_DIR = get_download_dir()
+DB_PATH = get_db_path()
+print(f"Download directory: {DOWNLOAD_DIR}")
+print(f"Database path: {DB_PATH}")
+
 # Database setup
-db = Database()
+db = Database(db_path=DB_PATH)
 monitor = YoutubeMonitor()
 transcriber = Transcriber()
 
@@ -57,7 +62,7 @@ app.secret_key = os.urandom(24)
 
 def get_file_path(video_id, file_type, language=None):
     """Get file path based on video ID and type."""
-    downloads_path = get_download_dir()
+    downloads_path = DOWNLOAD_DIR
     
     print(f"Getting path for video: {video_id}, type: {file_type}, language: {language}")  # Debug print
     
@@ -144,7 +149,7 @@ def get_videos():
 
 @app.route('/refresh-library')
 def refresh_library():
-    downloads_path = get_download_dir()
+    downloads_path = DOWNLOAD_DIR
     
     try:
         stats = scan_downloads_folder(downloads_path)
@@ -295,7 +300,7 @@ def test_paths(video_id):
             "language": video.language,
             "summary_path": summary_path,
             "file_exists": os.path.exists(summary_path),
-            "downloads_path": get_download_dir()
+            "downloads_path": DOWNLOAD_DIR
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500

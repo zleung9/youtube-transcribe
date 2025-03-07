@@ -129,12 +129,18 @@ def rename_title(video_title, config):
 
 def get_download_dir(path="downloads/"):
     package_root = os.path.dirname(
-        os.path.dirname(
-            os.path.abspath(__file__)
-        )
+        os.path.abspath(__file__)
     )
+    download_dir = os.path.join(package_root, path)
+    return download_dir
 
-    return os.path.join(package_root, path)
+
+def get_db_path(path="videos.db"):
+    package_root = os.path.dirname(
+        os.path.abspath(__file__)
+    )
+    db_path = os.path.join(package_root, path)
+    return db_path
 
 
 def download_youtube_video(

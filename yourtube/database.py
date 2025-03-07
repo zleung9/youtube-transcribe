@@ -12,7 +12,7 @@ from sqlalchemy import (
     Boolean, 
     UUID
 )
-from yourtube.utils import get_download_dir
+from yourtube.utils import get_download_dir, get_db_path
 
 Base = declarative_base()
 
@@ -86,8 +86,11 @@ class Video(Base):
 
 
 class Database(ABC):
-    def __init__(self):
-        pass
+    def __init__(self, db_path=None):
+        if db_path is None:
+            self.db_path = get_db_path()
+        else:
+            self.db_path = db_path
 
     def add_video(self, video):
         return self._add_video(video)
@@ -144,8 +147,8 @@ class Database(ABC):
 
 class SqliteDB(Database):
     def __init__(self, db_path='videos.db'):
-        super().__init__()
-        self.engine = create_engine(f'sqlite:///{db_path}', echo=False)
+        super().__init__(db_path)
+        self.engine = create_engine(f'sqlite:///{self.db_path}', echo=False)
         Base.metadata.create_all(self.engine)  # Create tables if they don't exist
         Session = sessionmaker(bind=self.engine)
         self.session = Session()
