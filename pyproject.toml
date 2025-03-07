@@ -1,6 +1,6 @@
 [project]
-name = "yourtube"
-version = "1.0.0"
+name = "video-curator"
+version = "1.0.3"
 description = "Your own youtube assistant"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -25,8 +25,11 @@ dependencies = [
 ]
 
 [project.scripts]
-
 yourtube = "api.run:main"
 
 [tool.setuptools]
 packages = ["yourtube", "api"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+"api" = ["templates/*.html", "static/*"]
