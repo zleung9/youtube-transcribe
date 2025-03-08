@@ -6,15 +6,15 @@ import logging
 import glob
 from logging.handlers import RotatingFileHandler
 import json
-import shutil
 
 # Add the project root to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from yourtube import Database, Video, Transcriber
-from yourtube.utils import get_download_dir, get_db_path, get_config_path, load_config
+from yourtube.utils import get_download_dir, get_db_path, get_config_path, load_config, extract_youtube_id
 from yourtube.monitor import YoutubeMonitor
 from yourtube.main import process_video_pipeline
+from yourtube.async_worker import video_queue
 
 DOWNLOAD_DIR = get_download_dir()
 DB_PATH = get_db_path()
@@ -26,6 +26,8 @@ db = Database(db_path=DB_PATH)
 monitor = YoutubeMonitor()
 transcriber = Transcriber()
 
+# Start the video processing worker
+video_queue.start_worker(process_video_pipeline)
 
 app = Flask(__name__)
 
@@ -173,24 +175,26 @@ def refresh_library():
     return redirect(url_for('index'))
 
 
-@app.route('/video/<video_id>')
+@app.route('/video/<video_id>', methods=['GET'])
 def video_detail(video_id):
+    """Get details for a specific video"""
     video = db.get_video(video_id=video_id)
-    
     if not video:
-        return "Video not found", 404
+        return jsonify({'error': 'Video not found'}), 404
     
-    # Get transcript if it exists
-    transcript_text = ""
-    transcript_path = get_file_path(video_id, 'transcript', video.language)
-    if os.path.exists(transcript_path):
-        try:
-            with open(transcript_path, 'r', encoding='utf-8') as f:
-                transcript_text = f.read()
-        except Exception:
-            transcript_text = "Error reading transcript."
-            
-    return render_template('video.html', video=video, transcript=transcript_text)
+    # Convert to dictionary for JSON response
+    video_data = {
+        'video_id': video.video_id,
+        'title': video.title,
+        'channel': video.channel,
+        'upload_date': video.upload_date.isoformat() if video.upload_date else None,
+        'process_date': video.process_date.isoformat() if video.process_date else None,
+        'has_transcript': bool(video.transcript),
+        'has_summary': bool(video.summary),
+        'notes': video.notes
+    }
+    
+    return jsonify(video_data)
 
 
 @app.route('/transcript/<video_id>')
@@ -360,7 +364,21 @@ def process_video(force=True, transcribe=True, process=True, summarize=True):
         return jsonify({'error': 'No URL provided'}), 400
     
     try:
-        process_video_pipeline(
+        # Extract video ID from URL
+        video_id = extract_youtube_id(url)
+        if not video_id:
+            return jsonify({'error': 'Invalid YouTube URL'}), 400
+        
+        # Check if video is already in queue or being processed
+        status = video_queue.get_status(video_id)
+        if status in ['queued', 'processing']:
+            return jsonify({'success': True, 'status': status, 'video_id': video_id})
+        
+        # Get basic video info before adding to queue
+        video_info = monitor.get_video_info(video_id)
+        
+        # Add video to processing queue
+        video_queue.add_task(
             url=url,
             database=db,
             monitor=monitor,
@@ -368,12 +386,27 @@ def process_video(force=True, transcribe=True, process=True, summarize=True):
             force=force,
             transcribe=transcribe,
             process=process,
-            summarize=summarize
+            summarize=summarize,
+            video_id=video_id
         )
 
-        return jsonify({'success': True})
+        # Return immediately with success status and video info
+        return jsonify({
+            'success': True, 
+            'status': 'queued', 
+            'video_id': video_id,
+            'title': video_info.get('title', f'Processing: {video_id}'),
+            'channel': video_info.get('channel', 'Loading...'),
+            'upload_date': video_info.get('upload_date', '')
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/video-status/<video_id>', methods=['GET'])
+def video_status(video_id):
+    status = video_queue.get_status(video_id)
+    return jsonify({'status': status or 'unknown'})
 
 
 @app.route('/delete-video/<video_id>', methods=['DELETE'])
@@ -435,17 +468,16 @@ def main():
     load_config();
     
     def open_browser():
-        webbrowser.open('http://127.0.0.1:5000/')
+        webbrowser.open('http://127.0.0.1:5001/')
     
     # Open browser after a short delay to ensure the server is running
     Timer(1.5, open_browser).start()
     
-    app.run(
-        debug=True, 
-        host='127.0.0.1',
-        port=5000,
-        threaded=True
-    )
+    # Ensure the worker is stopped when the app exits
+    try:
+        app.run(host='0.0.0.0', port=5001, debug=True, use_reloader=False)
+    finally:
+        video_queue.stop_worker()
 
 if __name__ == '__main__':
     main()

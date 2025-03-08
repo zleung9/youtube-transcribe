@@ -39,6 +39,42 @@ class YoutubeMonitor(Monitor):
             'force_generic_extractor': False
         }
     
+    def get_video_info(self, video_id):
+        """
+        Get basic information about a video without downloading it
+        
+        Args:
+            video_id (str): YouTube video ID
+            
+        Returns:
+            dict: Dictionary containing basic video information
+        """
+        video_url = f"https://www.youtube.com/watch?v={video_id}"
+        ydl_opts = {
+            'quiet': True,
+            'skip_download': True,
+            'no_warnings': True,
+            'writeinfojson': False,
+            'noplaylist': True
+        }
+        
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(video_url, download=False)
+                
+                # Extract only the needed information
+                return {
+                    'title': info.get('title', f'Video {video_id}'),
+                    'channel': info.get('uploader', 'Unknown channel'),
+                    'upload_date': info.get('upload_date', '')
+                }
+        except Exception as e:
+            print(f"Error getting video info: {str(e)}")
+            return {
+                'title': f'Processing: {video_id}',
+                'channel': 'Loading...',
+                'upload_date': ''
+            }
 
     def check_updates(self, channel_handle, max_results=1):
         """
