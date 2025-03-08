@@ -140,10 +140,7 @@ def get_download_dir(path="downloads/"):
 
 
 def get_db_path(path="videos.db"):
-    package_root = os.path.dirname(
-        os.path.abspath(__file__)
-    )
-    db_path = os.path.join(package_root, path)
+    db_path = os.path.join(get_download_dir(), path)
     return db_path
 
 
