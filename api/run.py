@@ -5,12 +5,14 @@ import os
 import logging
 import glob
 from logging.handlers import RotatingFileHandler
+import json
+import shutil
 
 # Add the project root to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from yourtube import Database, Video, Transcriber
-from yourtube.utils import get_download_dir, get_db_path
+from yourtube.utils import get_download_dir, get_db_path, get_config_path, load_config
 from yourtube.monitor import YoutubeMonitor
 from yourtube.main import process_video_pipeline
 
@@ -389,9 +391,48 @@ def delete_video(video_id):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/config', methods=['GET'])
+def get_config():
+    try:
+        config_path = get_config_path()
+        
+        with open(config_path, 'r') as f:
+            config_content = f.read()
+        
+        return jsonify({'content': config_content})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/config', methods=['POST'])
+def save_config():
+    try:
+        config_path = get_config_path()
+        
+        config_content = request.json.get('content')
+        if not config_content:
+            return jsonify({'error': 'No content provided'}), 400
+        
+        # Validate JSON before saving
+        try:
+            json.loads(config_content)
+        except json.JSONDecodeError as e:
+            return jsonify({'error': f'Invalid JSON: {str(e)}'}), 400
+        
+        with open(config_path, 'w') as f:
+            f.write(config_content)
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 def main():
     import webbrowser
     from threading import Timer
+    
+    # Check if config.json exists, if not create it from template
+    load_config();
     
     def open_browser():
         webbrowser.open('http://127.0.0.1:5000/')

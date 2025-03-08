@@ -286,6 +286,95 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Add event listener for Enter key in YouTube URL input
+    const urlInput = document.getElementById('youtube-url-input');
+    if (urlInput) {
+        urlInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                processVideo();
+            }
+        });
+    }
+
+    // Config modal functionality
+    const configButton = document.getElementById('config-button');
+    const configModal = document.getElementById('config-modal');
+    const closeConfigModal = document.getElementById('close-config-modal');
+    const configEditor = document.getElementById('config-editor');
+    const saveConfigButton = document.getElementById('save-config-button');
+
+    if (configButton && configModal) {
+        // Open config modal
+        configButton.addEventListener('click', async function() {
+            try {
+                const response = await fetch('/config');
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert('Error loading configuration: ' + data.error);
+                    return;
+                }
+                
+                // Format JSON for better readability
+                try {
+                    const jsonObj = JSON.parse(data.content);
+                    configEditor.value = JSON.stringify(jsonObj, null, 4);
+                } catch (e) {
+                    configEditor.value = data.content;
+                }
+                
+                configModal.classList.remove('hidden');
+            } catch (error) {
+                alert('Error loading configuration: ' + error);
+            }
+        });
+
+        // Close config modal
+        closeConfigModal.addEventListener('click', function() {
+            configModal.classList.add('hidden');
+        });
+
+        // Save config
+        saveConfigButton.addEventListener('click', async function() {
+            try {
+                // Validate JSON
+                try {
+                    JSON.parse(configEditor.value);
+                } catch (e) {
+                    alert('Invalid JSON: ' + e.message);
+                    return;
+                }
+                
+                const response = await fetch('/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ content: configEditor.value }),
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert('Error saving configuration: ' + data.error);
+                } else {
+                    alert('Configuration saved successfully!');
+                    configModal.classList.add('hidden');
+                }
+            } catch (error) {
+                alert('Error saving configuration: ' + error);
+            }
+        });
+
+        // Close modal when clicking outside
+        configModal.addEventListener('click', function(event) {
+            if (event.target === configModal) {
+                configModal.classList.add('hidden');
+            }
+        });
+    }
+
     // Initialize marked
     if (typeof marked !== 'undefined') {
         marked.setOptions({
