@@ -65,13 +65,13 @@ class Video(Base):
             dict: dictionary of video object
         '''
         return {
-            'id': self.id,
+            'id': str(self.id),
             "video_id": self.video_id,
             'title': self.title,
             'channel': self.channel,
             'channel_id': self.channel_id,
-            'upload_date': self.upload_date,
-            'process_date': self.process_date,
+            'upload_date': self.upload_date.isoformat() if self.upload_date else None,
+            'process_date': self.process_date.isoformat() if self.process_date else None,
             'language': self.language,
             'transcript': self.transcript,
             'fulltext': self.fulltext,
