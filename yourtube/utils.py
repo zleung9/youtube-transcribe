@@ -1,6 +1,7 @@
 import json
 import re
 import os
+import shutil
 from webvtt import WebVTT
 import litellm
 import torch
@@ -62,14 +63,15 @@ def get_device():
 
 def load_config():
     """Load configuration from config.json"""
+    config_path = get_config_path()
     try:
-        with open(get_config_path(), 'r') as f:
+        with open(config_path, 'r') as f:
             return json.load(f)
     except FileNotFoundError:
-        raise FileNotFoundError("config.json not found. Please create it based on the template.")
+        print("config.json not found. Please create it based on the template.")
+        shutil.copy(config_path+'.template', config_path)
     except json.JSONDecodeError:
         raise ValueError("Invalid JSON in config.json")
-
 
 def get_config_path():
     """Get the path to the config.json file"""
