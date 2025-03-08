@@ -6,10 +6,37 @@ While there are similar products available (often paid), this solution offers un
 - It provides a daily report of concise summaries of channels' latest update that can replace watching entire videos in many cases. 
 - It can get transcript for videos that does not have a subtitle, e.g. videos in Chinese. If you want to read the summary of a video in Chinese, this is the app you are looking for.
 
-The application includes a web-based user interface. Email notification functionality is currently under development. For now, videos of interest must be manually added to the database.
+The application includes a web-based user interface. **Email notification functionality is currently under development**. For now, videos of interest must be manually added to the database.
+
+## Latest update
+- 1.1.0 Video processing is now asynchronous. You can add as many videos to the queue all at once.
+- 1.0.4 User can modify configurations using UI pop up window.
 
 
-## Installation
+## Usage
+
+Installation is easy, just open terminal and type:
+```bash
+pip install video-curator
+```
+Then type the following command to run (it is `yourtube`, with an 'r'):
+```bash
+yourtube
+```
+This will open a web app in your default browser. For each video the app will fetch subtitles, summarize the content and store it in a sql database. 
+
+If you are using this app for the first time, you need to modify the config file and add openai or anthropic api keys.
+
+![Configuration Screenshot1](api/static/config1.png)
+
+![Configuration Screenshot2](api/static/config2.png)
+
+Here is a simple demo of how add video to the database:  
+[![Demo Video](https://img.youtube.com/vi/wu59USebe3g/maxresdefault.jpg)](https://youtu.be/wu59USebe3g)
+
+## Developer
+
+If you want to have more control on the installation and would like to play around with the code, please to to developer mode: 
 
 1. Clone this repository:
 ```bash
@@ -79,10 +106,3 @@ Run the main script. The command is `yourtube` with an "r".
 yourtube
 ```
 
-This will open a web app in your default browser. For each video the app will fetch subtitles, summarize the content and store it in a sql database. 
-
-Most of the time, videos spoken in Chinese doesn't have a subtitle. The app will download the video and transcribe using Whisper to get the subtitles. The downloaded video is then deleted upon the completion of transcription.
-
-
-Here is a simple demo: 
-[![Demo Video](https://img.youtube.com/vi/wu59USebe3g/maxresdefault.jpg)](https://youtu.be/wu59USebe3g)
