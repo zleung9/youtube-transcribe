@@ -12,7 +12,7 @@ import shutil
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from yourtube import Database, Video, Transcriber
-from yourtube.utils import get_download_dir, get_db_path, get_config_path
+from yourtube.utils import get_download_dir, get_db_path, get_config_path, load_config
 from yourtube.monitor import YoutubeMonitor
 from yourtube.main import process_video_pipeline
 
@@ -432,15 +432,7 @@ def main():
     from threading import Timer
     
     # Check if config.json exists, if not create it from template
-    config_path = get_config_path()
-    if not os.path.exists(config_path):
-        print(f"Config file not found at {config_path}. Creating from template...")
-        template_path = os.path.join(os.path.dirname(os.path.dirname(config_path)), 'config.json.template')
-        assert os.path.exists(template_path), f"Template file not found at {template_path}"
-        assert os.path.exists(os.path.dirname(config_path)), f"Config directory not found at {os.path.dirname(config_path)}"
-        shutil.copy(template_path, config_path)
-        print(f"Config file created at {config_path}")
-        print(f"Warning: Template file not found at {template_path}")
+    load_config();
     
     def open_browser():
         webbrowser.open('http://127.0.0.1:5000/')
