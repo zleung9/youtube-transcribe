@@ -54,9 +54,9 @@
     "email": {
         "smtp_server": "smtp.gmail.com",
         "smtp_port": 587,
-        "username": "zleung9@gmail.com",
-        "password": "zkhkliwvwiuqmugd",
-        "recipient": "zleung9@gmail.com"
+        "username": "your_email@gmail.com",
+        "password": "app-password",
+        "recipient": "your_email@gmail.com"
     },
     
     "monitored_platforms": [
