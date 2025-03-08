@@ -138,6 +138,8 @@ def get_download_dir(path="downloads/"):
         os.path.abspath(__file__)
     )
     download_dir = os.path.join(package_root, path)
+    if not os.path.exists(download_dir):
+        os.makedirs(download_dir)
     return download_dir
 
 
