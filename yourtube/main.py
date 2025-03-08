@@ -95,19 +95,36 @@ async def run_scheduler(
             schedule.run_pending()
             time.sleep(60)  # Check every minute
 
-def process_video_pipeline(url, database, monitor, transcriber, transcribe=False, process=False, summarize=False, force=False):
-
-    video_id = extract_youtube_id(url)
+def process_video_pipeline(url, database, monitor, transcriber, transcribe=False, process=False, summarize=False, force=False, video_id=None):
+    """
+    Process a video from URL through the pipeline
+    
+    Args:
+        url (str): YouTube URL
+        database (Database): Database instance
+        monitor (YoutubeMonitor): Monitor instance
+        transcriber (Transcriber): Transcriber instance
+        transcribe (bool): Whether to transcribe the video
+        process (bool): Whether to process the transcript
+        summarize (bool): Whether to summarize the transcript
+        force (bool): Whether to force processing even if video exists
+        video_id (str, optional): Video ID if already extracted
+    
+    Returns:
+        int: 0 on success, non-zero on failure
+    """
+    if not video_id:
+        video_id = extract_youtube_id(url)
+    
     video = database.get_video(video_id=video_id)
     if video and not force:
         print(f"Video {video_id} already processed")
-        return
+        return 0
 
     # Download and transcribe video flow
     video = monitor.download(video_id)
 
     if transcribe and not video.transcript:
-
         print(f"Transcribing video")
         transcriber.load_model(model_name="base")
         _ = transcriber.transcribe(video)

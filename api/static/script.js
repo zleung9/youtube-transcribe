@@ -198,8 +198,22 @@ async function processVideo() {
         if (data.error) {
             alert(data.error);
         } else {
-            // Refresh the page to show the new video
-            window.location.reload();
+            // Add a temporary entry for the video being processed
+            const videoId = data.video_id;
+            
+            // Create a new video element with processing status
+            const videoInfo = {
+                title: data.title || `Processing: ${videoId}`,
+                channel: data.channel || 'Loading...',
+                upload_date: data.upload_date || ''
+            };
+            addProcessingVideo(videoId, url, videoInfo);
+            
+            // Start polling for status updates
+            startStatusPolling(videoId);
+            
+            // Clear the input field
+            urlInput.value = '';
         }
     } catch (error) {
         alert('Error processing video: ' + error);
@@ -208,6 +222,162 @@ async function processVideo() {
         urlInput.disabled = false;
         button.disabled = false;
         button.innerHTML = originalButtonContent;
+    }
+}
+
+function addProcessingVideo(videoId, url, videoInfo) {
+    // Create a placeholder element for the processing video
+    const videoElement = document.createElement('div');
+    videoElement.className = 'bg-gray-200 rounded-lg shadow p-2 hover:bg-gray-200 cursor-pointer transition-colors';
+    videoElement.setAttribute('data-video-id', videoId);
+    videoElement.setAttribute('onclick', `selectVideo('${videoId}')`);
+    
+    // Format the upload date if available
+    let formattedDate = '';
+    if (videoInfo.upload_date) {
+        // Convert YYYYMMDD to YYYY-MM-DD
+        const uploadDate = videoInfo.upload_date;
+        if (uploadDate.length === 8) {
+            formattedDate = `${uploadDate.substring(0, 4)}-${uploadDate.substring(4, 6)}-${uploadDate.substring(6, 8)}`;
+        } else {
+            formattedDate = uploadDate;
+        }
+    }
+    
+    videoElement.innerHTML = `
+        <div class="flex flex-col gap-1">
+            <!-- First row: Title only -->
+            <div class="text-base font-semibold hover:text-blue-600">
+                <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank">${videoInfo.title}</a>
+            </div>
+            
+            <!-- Second row: Channel, Date -->
+            <div class="flex items-center text-sm text-gray-600">
+                <div class="flex-1">
+                    ${videoInfo.channel} ${formattedDate ? '&nbsp;|&nbsp;' + formattedDate : ''}
+                </div>
+
+                <!-- Processing indicator -->
+                <div class="ml-4 flex-shrink-0 processing-indicator">
+                    <svg class="animate-spin h-5 w-5 text-blue-500" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add to the video list
+    const videoList = document.querySelector('.video-list-content');
+    if (videoList) {
+        videoList.prepend(videoElement);
+    }
+}
+
+function updateVideoStatus(videoId, status) {
+    const videoElement = document.querySelector(`[data-video-id="${videoId}"]`);
+    if (!videoElement) return;
+    
+    if (status === 'completed') {
+        // Replace processing indicator with delete button
+        const actionDiv = videoElement.querySelector('.processing-indicator');
+        if (actionDiv) {
+            actionDiv.innerHTML = `
+                <button onclick="deleteVideo('${videoId}', event)" class="text-red-500 hover:text-red-700">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                    </svg>
+                </button>
+            `;
+            actionDiv.classList.remove('processing-indicator');
+        }
+    } else if (status === 'error') {
+        // Show error indicator
+        const actionDiv = videoElement.querySelector('.processing-indicator');
+        if (actionDiv) {
+            actionDiv.innerHTML = `
+                <div class="text-red-500">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+            `;
+            actionDiv.classList.remove('processing-indicator');
+            
+            // Update status text
+            const statusText = videoElement.querySelector('.flex-1');
+            if (statusText) {
+                statusText.innerHTML += ' <span class="text-red-500">(Error)</span>';
+            }
+        }
+    }
+}
+
+function startStatusPolling(videoId) {
+    // Poll for status updates every 2 seconds
+    const pollInterval = setInterval(async () => {
+        try {
+            const response = await fetch(`/video-status/${videoId}`);
+            const data = await response.json();
+            
+            if (data.status === 'completed' || data.status === 'error') {
+                // Update UI with final status
+                updateVideoStatus(videoId, data.status);
+                
+                // If completed, refresh the video data after a short delay
+                if (data.status === 'completed') {
+                    setTimeout(async () => {
+                        try {
+                            // Fetch updated video data
+                            const videoResponse = await fetch(`/video/${videoId}`);
+                            if (videoResponse.ok) {
+                                const videoData = await videoResponse.json();
+                                
+                                // Update the video element with complete data
+                                updateVideoWithCompleteData(videoId, videoData);
+                            } else {
+                                console.error('Failed to fetch updated video data');
+                            }
+                        } catch (error) {
+                            console.error('Error fetching updated video data:', error);
+                        }
+                    }, 1000);
+                }
+                
+                // Stop polling
+                clearInterval(pollInterval);
+            }
+        } catch (error) {
+            console.error('Error polling for video status:', error);
+        }
+    }, 2000);
+    
+    // Store the interval ID in case we need to clear it later
+    window.statusPolls = window.statusPolls || {};
+    window.statusPolls[videoId] = pollInterval;
+}
+
+function updateVideoWithCompleteData(videoId, videoData) {
+    const videoElement = document.querySelector(`[data-video-id="${videoId}"]`);
+    if (!videoElement) return;
+    
+    // Format the upload date if available
+    let formattedDate = '';
+    if (videoData.upload_date) {
+        formattedDate = new Date(videoData.upload_date).toISOString().split('T')[0];
+    }
+    
+    // Update the title and other information
+    const titleElement = videoElement.querySelector('.text-base.font-semibold a');
+    if (titleElement) {
+        titleElement.textContent = videoData.title || `Video ${videoId}`;
+    }
+    
+    // Update channel and date info
+    const infoElement = videoElement.querySelector('.flex-1');
+    if (infoElement) {
+        infoElement.innerHTML = `${videoData.channel || 'Unknown channel'} ${formattedDate ? '&nbsp;|&nbsp;' + formattedDate : ''}`;
     }
 }
 
