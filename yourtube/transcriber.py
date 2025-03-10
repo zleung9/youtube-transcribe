@@ -5,7 +5,7 @@ import litellm
 import ffmpeg
 from yourtube import Video
 from yourtube.utils import get_device, get_download_dir, get_llm_info
-from yourtube.prompts import prompt_summarize
+from yourtube.prompts import prompt_summarize, prompt_process_fulltext
 
 
 def format_timestamp(seconds):
@@ -210,7 +210,7 @@ class Transcriber:
         except Exception as e:
             print(f"Error releasing model: {e}")
 
-    def process(self, video: Video):
+    def extract_fulltext(self, video: Video):
         """
         Process SRT file to extract clean text content.
         Removes timestamps and formatting, combining all text into a single file.
@@ -254,6 +254,104 @@ class Transcriber:
         print(f"Converted {self._srt_path} to {self._txt_path}")
         return processed_text
     
+    def process_fulltext(self, video: Video, chunk_size: int=1000, overlap: int=200):
+        """
+        Process the fulltext of the video. The purpose is to reorganize the text into a more readable format. It does the following:
+        1. Read the fulltext from the txt file and divide it into chunks of 1000 tokens/words each with an overlap.
+        2. Iterate over chunks:
+            For each chunk, feed to `prompt_process_fulltext` function to create a prompt for the LLM, and get the output of from LLM.
+        4. Create a new txt file and write the output of the LLM to it and append the output of LLM to the file for each iteration.
+        
+        Args:
+            video (Video): Video object containing file information
+            chunk_size (int, optional): Size of each chunk in tokens/words. Defaults to 1000.
+            overlap (int, optional): Number of tokens/words to overlap between chunks. Defaults to 200.
+            
+        Returns:
+            str: Processed content
+        """
+        self.load_video(video)
+        with open(self._txt_path, 'r', encoding='utf-8') as file:
+            content = file.read()
+        
+        # Get LLM information from config
+        llm_provider, llm_name, api_key, max_tokens, temperature = get_llm_info("processor")
+        words = list(content) if self._language == "zh" else content.split() # For Chinese, we split by characters since each character is a token
+        
+        # Create chunks with overlap
+        chunks = []
+        for i in range(0, len(words), chunk_size - overlap):
+            # Make sure we don't go beyond the end of the list
+            end_idx = min(i + chunk_size, len(words))
+            chunks.append(words[i:end_idx])
+            # If we've reached the end, break
+            if end_idx == len(words):
+                break
+        
+        # Process each chunk with LLM
+        processed_content = ""
+        starting_text = ""  # Initial starting text is empty
+        
+        for i, chunk in enumerate(chunks):
+            # Join the chunk back into text
+            chunk_text = ''.join(chunk) if self._language == "zh" else ' '.join(chunk)
+            # Create prompt for LLM
+            prompt = prompt_process_fulltext(chunk_text, starting_text, self._language)
+            try:
+                response = litellm.completion(
+                    messages=[{"role": "user", "content": prompt}],
+                    model=f"{llm_provider}/{llm_name}",
+                    api_key=api_key,
+                    max_tokens=max_tokens,
+                    temperature=temperature
+                )
+            except Exception as e:
+                print(f"LLM error processing chunk {i+1}: {e}")
+                raise
+            chunk_result = response.choices[0].message.content
+            
+            # Extract the last paragraph for use as starting text for next chunk
+            last_paragraph = ""
+            content_to_append = chunk_result
+            whitespace = '\n\n'
+            paragraphs = chunk_result.split(whitespace)
+            if len(paragraphs) > 1:
+                # If we have multiple paragraphs, use the last one as starting text
+                # and append all but the last paragraph to processed_content
+                last_paragraph = paragraphs[-1]
+                content_to_append = whitespace.join(paragraphs[:-1])
+            else:
+                # If no double-newline paragraph breaks, try splitting by single newlines
+                whitespace = '\n'   
+                paragraphs = chunk_result.split(whitespace)
+                if len(paragraphs) > 1:
+                    last_paragraph = paragraphs[-1]
+                    content_to_append = whitespace.join(paragraphs[:-1])
+                else:
+                    # If no paragraph breaks at all, use the entire chunk as the last paragraph
+                    last_paragraph = chunk_result
+                    content_to_append = ""
+            
+            # Append the content (without the last paragraph) to the processed content
+            processed_content += whitespace + content_to_append
+            starting_text = last_paragraph
+            
+            print(f"Processed chunk {i+1}/{len(chunks)}")
+
+        
+        # Create a new file for the processed content
+        processed_txt_path = self._txt_path.replace(".txt", ".processed.txt")
+        with open(processed_txt_path, 'w', encoding='utf-8') as file:
+            file.write(processed_content)
+        
+        print(f"Processed fulltext saved to: {processed_txt_path}")
+        
+        # Update the txt path to the processed file
+        self._txt_path = processed_txt_path
+        
+        return processed_content
+    
+    
 
     def summarize(self, video: Video, verbose=False):
         """
@@ -279,7 +377,7 @@ class Transcriber:
             with open(self._txt_path, 'r', encoding='utf-8') as file:
                 content = file.read()
         except FileNotFoundError:
-            self.process(video)
+            self.extract_fulltext(video)
             with open(self._txt_path, 'r', encoding='utf-8') as file:
                 content = file.read()
         try:

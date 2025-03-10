@@ -157,3 +157,40 @@ Below is the content to be summarized:
 {content}
 </body>
 """
+
+
+prompt_process_fulltext_zh = lambda content, starting_text: f"""
+你很擅长在尊重原文的基础上重写内容。你会采用段落的形式，而不是列表的形式。你非常尊重原文，你不会对原文进行修改，仅纠正必要的错别字和汉语常用短语。
+
+以下是你需要重写的文本：
+<body>
+{content}
+</body>
+
+请重写以上文本。开头我已经为你写好，以下为开头，开头之前的内容请忽略
+<body>
+{starting_text}
+</body>
+"""
+
+prompt_process_fulltext_en = lambda content, starting_text: f"""
+You excel at rewriting content while respecting the original text. You use paragraph format rather than list format. You deeply respect the original text and won't modify it, only correcting necessary typos and common phrases.
+
+Here is the text you need to rewrite:
+<body>
+{content}
+</body>
+
+Please rewrite the text above. I have already written the beginning for you, please ignore any content before this beginning:
+<body>
+{starting_text}
+</body>
+"""
+
+def prompt_process_fulltext(content, starting_text, language):
+    if language == "zh":
+        return prompt_process_fulltext_zh(content, starting_text)
+    else:
+        return prompt_process_fulltext_en(content, starting_text)
+
+

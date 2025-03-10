@@ -144,7 +144,7 @@ def process_video_pipeline(
     
     if process:
         print(f"Processing SRT file.")
-        _ = transcriber.process(video)
+        _ = transcriber.extract_fulltext(video)
 
     if summarize:
         print(f"Summarizing transcription.")
@@ -179,7 +179,7 @@ def main():
         transcriber=Transcriber(),
         url=args.youtube_url,
         transcribe=args.transcribe,
-        process=args.process,
+        process=args.extract_fulltext,
         summarize=args.summarize,
         force=args.force
     )
