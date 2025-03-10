@@ -19,6 +19,11 @@
             "api_key": "your_api_key"
         }
     ],
+    "transcriber": {
+        "model": "whisper",
+        "size": "small",
+        "temperature": 0.0
+    },
     "summarizer": {
         "model_title": "openai-gpt-4o",
         "max_tokens": 4096,

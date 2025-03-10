@@ -1,7 +1,7 @@
 import os
 import argparse
 from yourtube import Database, Transcriber
-from yourtube.utils import extract_youtube_id
+from yourtube.utils import extract_youtube_id, load_config
 from yourtube.monitor import YoutubeMonitor, BilibiliMonitor
 from yourtube.reporter import Reporter
 from typing import Dict
@@ -95,7 +95,16 @@ async def run_scheduler(
             schedule.run_pending()
             time.sleep(60)  # Check every minute
 
-def process_video_pipeline(url, database, monitor, transcriber, transcribe=False, process=False, summarize=False, force=False, video_id=None):
+def process_video_pipeline(
+        config, 
+        url, 
+        database, 
+        monitor, 
+        transcriber, transcribe=False, process=False, summarize=False, 
+        force=False, 
+        video_id=None,
+        is_last=False # whether this is the last video to process in a queue
+    ):
     """
     Process a video from URL through the pipeline
     
@@ -124,11 +133,14 @@ def process_video_pipeline(url, database, monitor, transcriber, transcribe=False
     # Download and transcribe video flow
     video = monitor.download(video_id)
 
+    model_size = config.get("transcriber", {}).get("size", "base")
     if transcribe and not video.transcript:
         print(f"Transcribing video")
-        transcriber.load_model(model_name="base")
+        if not transcriber.model:
+            transcriber.load_model(model_size=model_size)
         _ = transcriber.transcribe(video)
-        transcriber.release_model()
+        if is_last:
+            transcriber.release_model()
     
     if process:
         print(f"Processing SRT file.")
@@ -159,7 +171,9 @@ def main():
     
     args=parser.parse_args()
 
+    config = load_config()
     process_video_pipeline(
+        config=config,
         database=Database(),
         monitor=YoutubeMonitor(),
         transcriber=Transcriber(),

@@ -73,10 +73,10 @@ def preprocess_audio(audio_path):
         return None
         
 class Transcriber:
-    def __init__(self, video: Video|None=None, model_name="base"):
+    def __init__(self, video: Video|None=None, model_size=None):
         
         self.working_dir = get_download_dir()
-        self.model_name = model_name
+        self.model_size = model_size
         self.device = None
         self.model = None
         self._video_path = ""
@@ -87,8 +87,8 @@ class Transcriber:
         self._language = "zh" # default language is Chinese
         if video:
             self.load_video(video)
-        if model_name:
-            self.load_model(model_name)
+        if model_size:
+            self.load_model(model_size)
 
     @property
     def metadata(self):
@@ -99,21 +99,21 @@ class Transcriber:
             "language": self._language
         }
 
-    def load_model(self, model_name: str="base"):
+    def load_model(self, model_size: str="base"):
         """
         Load the Whisper model with GPU acceleration if available.
 
         Args:
-            model_name (str, optional): Name of the Whisper model to load. Defaults to "base".
+            model_size (str, optional): Name of the Whisper model to load. Defaults to "base".
         """
         # Try to use MPS/GPU first, fallback to CPU if there are issues
         try:
             self.device = get_device()
-            self.model = whisper.load_model(model_name).to(self.device)
+            self.model = whisper.load_model(model_size).to(self.device)
         except (NotImplementedError, RuntimeError):
             print("GPU acceleration failed, falling back to CPU...")
             self.device = "cpu"
-            self.model = whisper.load_model(model_name).to(self.device)
+            self.model = whisper.load_model(model_size).to(self.device)
     
 
     def load_video(self, video: Video):
@@ -143,8 +143,7 @@ class Transcriber:
         Returns:
             int: 0 on success, 1 on failure
         """
-        if not self.model:
-            self.load_model()
+        assert self.model, "Model not loaded."
         
         self.load_video(video)
         print("Detecting language...")

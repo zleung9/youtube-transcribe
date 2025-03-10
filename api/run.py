@@ -1,36 +1,33 @@
-from flask import Flask, render_template, redirect, url_for, flash, request, jsonify
-from flask_cors import CORS 
 import sys
 import os
 import logging
+import json
 import glob
 from logging.handlers import RotatingFileHandler
-import json
-
-# Add the project root to the Python path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
+from flask import Flask, render_template, redirect, url_for, flash, request, jsonify
+from flask_cors import CORS 
 from yourtube import Database, Video, Transcriber
 from yourtube.utils import get_download_dir, get_db_path, get_config_path, load_config, extract_youtube_id
 from yourtube.monitor import YoutubeMonitor
 from yourtube.main import process_video_pipeline
 from yourtube.async_worker import video_queue
+# Add the project root to the Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# global variables setup: dadtabase, monitor, transcriber, config, video_queue
 DOWNLOAD_DIR = get_download_dir()
 DB_PATH = get_db_path()
 print(f"Download directory: {DOWNLOAD_DIR}")
 print(f"Database path: {DB_PATH}")
 
-# Database setup
 db = Database(db_path=DB_PATH)
 monitor = YoutubeMonitor()
 transcriber = Transcriber()
+config =load_config() #check if config.json exists, if not create it from template
+video_queue.start_worker(process_video_pipeline) # Start the video processing worker
 
-# Start the video processing worker
-video_queue.start_worker(process_video_pipeline)
-
+# Flask app setup
 app = Flask(__name__)
-
 # Configure logging
 if not app.debug:
     # Create logs directory if it doesn't exist
@@ -63,7 +60,6 @@ CORS(app, resources={
 app.secret_key = os.urandom(24)
 
 
-
 def get_file_path(video_id, file_type, language=None):
     """Get file path based on video ID and type."""
     downloads_path = DOWNLOAD_DIR
@@ -86,6 +82,10 @@ def get_file_path(video_id, file_type, language=None):
     return path
 
 def scan_downloads_folder(downloads_path):
+    
+    global db
+    global monitor
+
     """Scan the downloads folder for video files and update the database."""
     stats = {
         'new_videos': 0,
@@ -182,19 +182,8 @@ def video_detail(video_id):
     if not video:
         return jsonify({'error': 'Video not found'}), 404
     
-    # Convert to dictionary for JSON response
-    video_data = {
-        'video_id': video.video_id,
-        'title': video.title,
-        'channel': video.channel,
-        'upload_date': video.upload_date.isoformat() if video.upload_date else None,
-        'process_date': video.process_date.isoformat() if video.process_date else None,
-        'has_transcript': bool(video.transcript),
-        'has_summary': bool(video.summary),
-        'notes': video.notes
-    }
-    
-    return jsonify(video_data)
+    # Convert to dictionary for JSON response    
+    return jsonify(video.to_dict())
 
 
 @app.route('/transcript/<video_id>')
@@ -359,6 +348,12 @@ def video_content(video_id):
 @app.route('/process-video', methods=['POST'])
 def process_video(force=True, transcribe=True, process=True, summarize=True):
     
+    global config
+    global transcriber
+    global monitor
+    global db
+    global video_queue
+        
     url = request.json.get('url')
     if not url:
         return jsonify({'error': 'No URL provided'}), 400
@@ -379,6 +374,7 @@ def process_video(force=True, transcribe=True, process=True, summarize=True):
         
         # Add video to processing queue
         video_queue.add_task(
+            config=config,
             url=url,
             database=db,
             monitor=monitor,
@@ -387,7 +383,8 @@ def process_video(force=True, transcribe=True, process=True, summarize=True):
             transcribe=transcribe,
             process=process,
             summarize=summarize,
-            video_id=video_id
+            video_id=video_id,
+            is_last=True
         )
 
         # Return immediately with success status and video info
@@ -440,6 +437,7 @@ def get_config():
 @app.route('/config', methods=['POST'])
 def save_config():
     try:
+        global config  # Reference the global config variable
         config_path = get_config_path()
         
         config_content = request.json.get('content')
@@ -448,12 +446,17 @@ def save_config():
         
         # Validate JSON before saving
         try:
-            json.loads(config_content)
+            new_config = json.loads(config_content)
+            # Update the global config variable
+            config = new_config
         except json.JSONDecodeError as e:
             return jsonify({'error': f'Invalid JSON: {str(e)}'}), 400
         
         with open(config_path, 'w') as f:
             f.write(config_content)
+        
+        # Log that config was updated
+        app.logger.info("Configuration updated successfully")
         
         return jsonify({'success': True})
     except Exception as e:
@@ -463,10 +466,7 @@ def save_config():
 def main():
     import webbrowser
     from threading import Timer
-    
-    # Check if config.json exists, if not create it from template
-    load_config();
-    
+
     def open_browser():
         webbrowser.open('http://127.0.0.1:5001/')
     
