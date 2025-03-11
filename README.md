@@ -14,7 +14,7 @@ The application includes a web-based user interface. **Email notification functi
 
 
 ## Usage
-
+#### Installation
 Installation is easy, just open terminal and type:
 ```bash
 pip install video-curator
@@ -25,14 +25,47 @@ yourtube
 ```
 This will open a web app in your default browser. For each video the app will fetch subtitles, summarize the content and store it in a sql database. 
 
+#### Configure
 If you are using this app for the first time, you need to modify the config file and add openai or anthropic api keys.
 
-![Configuration Screenshot1](api/static/config1.png)
+<img src="api/static/config1.png" alt="Configuration Screenshot1" width="80%"/>
 
-![Configuration Screenshot2](api/static/config2.png)
+<img src="api/static/config2.png" alt="Configuration Screenshot2" width="80%"/>
 
-Here is a simple demo of how add video to the database:  
-[![Demo Video](https://img.youtube.com/vi/wu59USebe3g/maxresdefault.jpg)](https://youtu.be/wu59USebe3g)
+What configuration you can customize in `config.json` file:
+```json
+{
+    "model": [ // The models possibly used in this app
+        {
+            "title": "openai-gpt-4o",
+            "provider": "openai",
+            "name": "gpt-4o",
+            "api_key": "YOUR_OPENAI_API_KEY" // Api KEY
+        },
+        {   
+            "title": "anthropic-claude-3.5-sonnet",
+            "provider": "anthropic",
+            "name": "claude-3-5-sonnet-20240620",
+            "api_key": "YOUR_ANTHROPIC_API_KEY"
+        }
+    ],
+    "transcriber": {
+        "model": "whisper",
+        "size": "small", // model size. See: https://github.com/openai/whisper
+        "temperature": 0
+    },
+    "summarizer": {
+        "model_title": "openai-gpt-4o", // the model title defined above, openai is used by default
+        "max_tokens": 4096,
+        "temperature": 0.8
+    },
+}
+```
+
+#### Here is a demo
+<a href="https://youtu.be/wu59USebe3g">
+  <img src="https://img.youtube.com/vi/wu59USebe3g/maxresdefault.jpg" alt="Demo Video" width="80%"/>
+</a>
 
 ## Developer
 
@@ -67,39 +100,15 @@ cd youtube-transcribe
 pip install -e . -r requirements.txt
 ```
 
-4. Set up configuration:
+4. Set up configuration as described in previous section. You do need to initiate a configuration file to begin with.
 ```bash
 cp config.json.template config.json
 ```
 
-Edit `config.json` with your settings:
-```json
-{
-    "model": [
-        {
-            "title": "openai-gpt-4o",
-            "provider": "openai",
-            "name": "gpt-4o",
-            "api_key": "YOUR_OPENAI_API_KEY"
-        },
-        {   
-            "title": "anthropic-claude-3.5-sonnet",
-            "provider": "anthropic",
-            "name": "claude-3-5-sonnet-20240620",
-            "api_key": "YOUR_ANTHROPIC_API_KEY"
-        }
-    ],
-    "summarizer": {
-        "model_title": "anthropic-claude-3.5-sonnet", # by default
-        "max_tokens": 4096,
-        "temperature": 0.8
-    },
-}
-```
 
 The configuration file supports multiple AI models for summarization, YouTube channel monitoring with customizable check intervals, and email notification settings. You'll need to provide your own API keys for the services you plan to use.
 
-## Usage
+5. Run in command line
 
 Run the main script. The command is `yourtube` with an "r". 
 ```bash

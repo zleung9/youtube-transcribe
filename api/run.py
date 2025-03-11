@@ -1,36 +1,33 @@
-from flask import Flask, render_template, redirect, url_for, flash, request, jsonify
-from flask_cors import CORS 
 import sys
 import os
 import logging
+import json
 import glob
 from logging.handlers import RotatingFileHandler
-import json
-
-# Add the project root to the Python path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
+from flask import Flask, render_template, redirect, url_for, flash, request, jsonify, after_this_request
+from flask_cors import CORS 
 from yourtube import Database, Video, Transcriber
 from yourtube.utils import get_download_dir, get_db_path, get_config_path, load_config, extract_youtube_id
 from yourtube.monitor import YoutubeMonitor
 from yourtube.main import process_video_pipeline
 from yourtube.async_worker import video_queue
+# Add the project root to the Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# global variables setup: dadtabase, monitor, transcriber, config, video_queue
 DOWNLOAD_DIR = get_download_dir()
 DB_PATH = get_db_path()
 print(f"Download directory: {DOWNLOAD_DIR}")
 print(f"Database path: {DB_PATH}")
 
-# Database setup
 db = Database(db_path=DB_PATH)
 monitor = YoutubeMonitor()
 transcriber = Transcriber()
+config =load_config() #check if config.json exists, if not create it from template
+video_queue.start_worker(process_video_pipeline) # Start the video processing worker
 
-# Start the video processing worker
-video_queue.start_worker(process_video_pipeline)
-
+# Flask app setup
 app = Flask(__name__)
-
 # Configure logging
 if not app.debug:
     # Create logs directory if it doesn't exist
@@ -62,7 +59,9 @@ CORS(app, resources={
 })
 app.secret_key = os.urandom(24)
 
-
+# Completely disable Werkzeug logging
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)  # Only show ERROR and above, suppressing INFO
 
 def get_file_path(video_id, file_type, language=None):
     """Get file path based on video ID and type."""
@@ -86,6 +85,10 @@ def get_file_path(video_id, file_type, language=None):
     return path
 
 def scan_downloads_folder(downloads_path):
+    
+    global db
+    global monitor
+
     """Scan the downloads folder for video files and update the database."""
     stats = {
         'new_videos': 0,
@@ -182,19 +185,8 @@ def video_detail(video_id):
     if not video:
         return jsonify({'error': 'Video not found'}), 404
     
-    # Convert to dictionary for JSON response
-    video_data = {
-        'video_id': video.video_id,
-        'title': video.title,
-        'channel': video.channel,
-        'upload_date': video.upload_date.isoformat() if video.upload_date else None,
-        'process_date': video.process_date.isoformat() if video.process_date else None,
-        'has_transcript': bool(video.transcript),
-        'has_summary': bool(video.summary),
-        'notes': video.notes
-    }
-    
-    return jsonify(video_data)
+    # Convert to dictionary for JSON response    
+    return jsonify(video.to_dict())
 
 
 @app.route('/transcript/<video_id>')
@@ -359,6 +351,12 @@ def video_content(video_id):
 @app.route('/process-video', methods=['POST'])
 def process_video(force=True, transcribe=True, process=True, summarize=True):
     
+    global config
+    global transcriber
+    global monitor
+    global db
+    global video_queue
+        
     url = request.json.get('url')
     if not url:
         return jsonify({'error': 'No URL provided'}), 400
@@ -379,6 +377,7 @@ def process_video(force=True, transcribe=True, process=True, summarize=True):
         
         # Add video to processing queue
         video_queue.add_task(
+            config=config,
             url=url,
             database=db,
             monitor=monitor,
@@ -387,7 +386,8 @@ def process_video(force=True, transcribe=True, process=True, summarize=True):
             transcribe=transcribe,
             process=process,
             summarize=summarize,
-            video_id=video_id
+            video_id=video_id,
+            is_last=True
         )
 
         # Return immediately with success status and video info
@@ -405,6 +405,16 @@ def process_video(force=True, transcribe=True, process=True, summarize=True):
 
 @app.route('/video-status/<video_id>', methods=['GET'])
 def video_status(video_id):
+    # Disable logging for this specific endpoint completely
+    log = logging.getLogger('werkzeug')
+    log.disabled = True
+    
+    # Re-enable logging after the request
+    @after_this_request
+    def enable_logging(response):
+        log.disabled = False
+        return response
+    
     status = video_queue.get_status(video_id)
     return jsonify({'status': status or 'unknown'})
 
@@ -440,6 +450,7 @@ def get_config():
 @app.route('/config', methods=['POST'])
 def save_config():
     try:
+        global config  # Reference the global config variable
         config_path = get_config_path()
         
         config_content = request.json.get('content')
@@ -448,25 +459,66 @@ def save_config():
         
         # Validate JSON before saving
         try:
-            json.loads(config_content)
+            new_config = json.loads(config_content)
+            # Update the global config variable
+            config = new_config
         except json.JSONDecodeError as e:
             return jsonify({'error': f'Invalid JSON: {str(e)}'}), 400
         
         with open(config_path, 'w') as f:
             f.write(config_content)
         
+        # Log that config was updated
+        app.logger.info("Configuration updated successfully")
+        
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/script/<video_id>')
+def view_script(video_id):
+    try:
+        video = db.get_video(video_id=video_id)
+        
+        if not video:
+            logging.error(f"Video not found in database: {video_id}")
+            return jsonify({"error": "Video not found in database"}), 404
+        
+        if not video.language:
+            logging.error(f"Language not set for video: {video_id}")
+            return jsonify({"error": "Video language not set"}), 400
+            
+        # Construct the path to the processed.txt file
+        script_path = os.path.join(DOWNLOAD_DIR, f"{video_id}.{video.language}.processed.txt")
+        logging.info(f"Checking script at path: {script_path}")
+        
+        if not os.path.exists(script_path):
+            logging.error(f"Script file not found: {script_path}")
+            return jsonify({"error": "Script file not found"}), 404
+        
+        try:
+            with open(script_path, 'r', encoding='utf-8') as f:
+                script_text = f.read()
+            if not script_text.strip():
+                logging.error(f"Empty script file: {script_path}")
+                return jsonify({"error": "Script file is empty"}), 500
+            return jsonify({"content": script_text})
+        except PermissionError:
+            logging.error(f"Permission denied reading script: {script_path}")
+            return jsonify({"error": "Permission denied reading script file"}), 403
+        except Exception as e:
+            logging.error(f"Error reading script: {str(e)}")
+            return jsonify({"error": f"Error reading script: {str(e)}"}), 500
+    except Exception as e:
+        logging.error(f"Unexpected error in view_script: {str(e)}")
+        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
+
+
 def main():
     import webbrowser
     from threading import Timer
-    
-    # Check if config.json exists, if not create it from template
-    load_config();
-    
+
     def open_browser():
         webbrowser.open('http://127.0.0.1:5001/')
     

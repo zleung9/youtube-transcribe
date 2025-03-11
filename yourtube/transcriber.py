@@ -3,10 +3,14 @@ import os
 import whisper
 import litellm
 import ffmpeg
+import logging
 from yourtube import Video
 from yourtube.utils import get_device, get_download_dir, get_llm_info
-from yourtube.prompts import prompt_summarize
+from yourtube.prompts import prompt_summarize, prompt_process_fulltext
 
+# Configure litellm logging - fix the verbose setting
+litellm.verbose = False  # Set the verbose attribute directly
+logging.getLogger("litellm").setLevel(logging.ERROR)  # Only show ERROR level logs
 
 def format_timestamp(seconds):
     """
@@ -62,10 +66,12 @@ def preprocess_audio(audio_path):
     try:
         # Convert to 16kHz mono WAV
         output_path = audio_path.replace('.mp4', '.wav')
-        ffmpeg.input(audio_path).output(output_path, 
-                                         ar='16000',    # Sample rate
-                                         ac=1,          # Mono audio
-                                         acodec='pcm_s16le').run(overwrite_output=True)
+        ffmpeg.input(audio_path).output(
+            output_path, 
+            ar='16000',    # Sample rate
+            ac=1,          # Mono audio
+            acodec='pcm_s16le'
+        ).run(overwrite_output=True, quiet=True)
         print(f"Audio preprocessed to: {output_path}")
         return output_path
     except Exception as e:
@@ -73,10 +79,10 @@ def preprocess_audio(audio_path):
         return None
         
 class Transcriber:
-    def __init__(self, video: Video|None=None, model_name="base"):
+    def __init__(self, video: Video|None=None, model_size=None):
         
         self.working_dir = get_download_dir()
-        self.model_name = model_name
+        self.model_size = model_size
         self.device = None
         self.model = None
         self._video_path = ""
@@ -87,8 +93,8 @@ class Transcriber:
         self._language = "zh" # default language is Chinese
         if video:
             self.load_video(video)
-        if model_name:
-            self.load_model(model_name)
+        if model_size:
+            self.load_model(model_size)
 
     @property
     def metadata(self):
@@ -99,21 +105,21 @@ class Transcriber:
             "language": self._language
         }
 
-    def load_model(self, model_name: str="base"):
+    def load_model(self, model_size: str="base"):
         """
         Load the Whisper model with GPU acceleration if available.
 
         Args:
-            model_name (str, optional): Name of the Whisper model to load. Defaults to "base".
+            model_size (str, optional): Name of the Whisper model to load. Defaults to "base".
         """
         # Try to use MPS/GPU first, fallback to CPU if there are issues
         try:
             self.device = get_device()
-            self.model = whisper.load_model(model_name).to(self.device)
+            self.model = whisper.load_model(model_size).to(self.device)
         except (NotImplementedError, RuntimeError):
             print("GPU acceleration failed, falling back to CPU...")
             self.device = "cpu"
-            self.model = whisper.load_model(model_name).to(self.device)
+            self.model = whisper.load_model(model_size).to(self.device)
     
 
     def load_video(self, video: Video):
@@ -129,6 +135,7 @@ class Transcriber:
         self._video_path = os.path.join(self.working_dir, f"{video.video_id}.mp4")
         self._srt_path = self._video_path.replace(".mp4", f".{self._language}.srt")
         self._txt_path = self._video_path.replace(".mp4", f".{self._language}.txt")
+        self._processed_txt_path = self._txt_path.replace(".txt", ".processed.txt")
         self._md_path = self._video_path.replace(".mp4", f".{self._language}.md")
 
 
@@ -143,11 +150,10 @@ class Transcriber:
         Returns:
             int: 0 on success, 1 on failure
         """
-        if not self.model:
-            self.load_model()
+        assert self.model, "Model not loaded."
         
         self.load_video(video)
-        print("Detecting language...")
+        print("Detecting language...", end="\r", flush=True)
         
         # If audio processing fails, return an error
         processed_audio_path = preprocess_audio(self._video_path)
@@ -165,7 +171,7 @@ class Transcriber:
         _, probs = model.detect_language(mel)
         language = max(probs, key=probs.get)
         print(f"Detected language: {language}")
-
+        print("Transcribing...", end="\r", flush=True)
         try:
             result = model.transcribe(
                 processed_audio_path,
@@ -211,7 +217,7 @@ class Transcriber:
         except Exception as e:
             print(f"Error releasing model: {e}")
 
-    def process(self, video: Video):
+    def extract_fulltext(self, video: Video):
         """
         Process SRT file to extract clean text content.
         Removes timestamps and formatting, combining all text into a single file.
@@ -255,6 +261,104 @@ class Transcriber:
         print(f"Converted {self._srt_path} to {self._txt_path}")
         return processed_text
     
+    def process_fulltext(self, video: Video, chunk_size: int=2000, overlap: int=200):
+        """
+        Process the fulltext of the video. The purpose is to reorganize the text into a more readable format. It does the following:
+        1. Read the fulltext from the txt file and divide it into chunks of 1000 tokens/words each with an overlap.
+        2. Iterate over chunks:
+            For each chunk, feed to `prompt_process_fulltext` function to create a prompt for the LLM, and get the output of from LLM.
+        4. Create a new txt file and write the output of the LLM to it and append the output of LLM to the file for each iteration.
+        
+        Args:
+            video (Video): Video object containing file information
+            chunk_size (int, optional): Size of each chunk in tokens/words. Defaults to 1000.
+            overlap (int, optional): Number of tokens/words to overlap between chunks. Defaults to 200.
+            
+        Returns:
+            str: Processed content
+        """
+        self.load_video(video)
+        with open(self._txt_path, 'r', encoding='utf-8') as file:
+            content = file.read()
+        
+        # Get LLM information from config
+        llm_provider, llm_name, api_key, max_tokens, temperature = get_llm_info("process_fulltext")
+        words = list(content) if self._language == "zh" else content.split() # For Chinese, we split by characters since each character is a token
+        
+        # Create chunks with overlap
+        chunks = []
+        for i in range(0, len(words), chunk_size - overlap):
+            # Make sure we don't go beyond the end of the list
+            end_idx = min(i + chunk_size, len(words))
+            chunk = words[i:end_idx]
+            chunks.append(''.join(chunk) if self._language == "zh" else ' '.join(chunk))
+            # If we've reached the end, break
+            if end_idx == len(words):
+                break
+        
+        # Process each chunk with LLM
+        processed_content = ""
+        starting_text = ""  # Initial starting text is empty
+        
+        for i, chunk in enumerate(chunks):
+            print(f"Processing text: {i+1}/{len(chunks)}", end="\r", flush=True)
+            # Create prompt for LLM
+            try:
+                response = litellm.completion(
+                    messages=[{
+                        "role": "user", 
+                        "content": prompt_process_fulltext(chunk, starting_text, self._language)
+                    }],
+                    model=f"{llm_provider}/{llm_name}",
+                    api_key=api_key,
+                    max_tokens=max_tokens,
+                    temperature=temperature
+                )
+            except Exception as e:
+                print(f"LLM error processing chunk {i+1}: {e}")
+                raise
+            chunk_result = response.choices[0].message.content
+            
+            # Extract the last paragraph for use as starting text for next chunk
+            last_paragraph = ""
+            content_to_append = chunk_result
+            whitespace = '\n\n'
+            paragraphs = chunk_result.split(whitespace)
+            if len(paragraphs) > 1:
+                # If we have multiple paragraphs, use the last one as starting text
+                # and append all but the last paragraph to processed_content
+                last_paragraph = paragraphs[-1]
+                content_to_append = whitespace.join(paragraphs[:-1])
+            else:
+                # If no double-newline paragraph breaks, try splitting by single newlines
+                whitespace = '\n'   
+                paragraphs = chunk_result.split(whitespace)
+                if len(paragraphs) > 1:
+                    last_paragraph = paragraphs[-1]
+                    content_to_append = whitespace.join(paragraphs[:-1])
+                else:
+                    # If no paragraph breaks at all, use the entire chunk as the last paragraph
+                    last_paragraph = chunk_result
+                    content_to_append = ""
+            
+            # Append the content (without the last paragraph) to the processed content
+            processed_content += whitespace + content_to_append
+            starting_text = last_paragraph
+
+        processed_content += whitespace + last_paragraph # Append the last paragraph to the processed content
+        # Create a new file for the processed content
+        processed_txt_path = self._txt_path.replace(".txt", ".processed.txt")
+        with open(processed_txt_path, 'w', encoding='utf-8') as file:
+            # Strip leading newlines before writing to file
+            file.write(processed_content.lstrip('\n'))
+        
+        print(f"Processed fulltext saved to: {processed_txt_path}")
+        
+        # Update the txt path to the processed file
+        self._txt_path = processed_txt_path
+        return processed_content
+    
+
 
     def summarize(self, video: Video, verbose=False):
         """
@@ -272,16 +376,19 @@ class Transcriber:
             - Uses LiteLLM to generate summary
             - Saves summary in markdown format (.md)
         """
+        # Use the processed text file if it exists, otherwise use the original text file
+        txt_path = self._processed_txt_path if os.path.exists(self._processed_txt_path) else self._txt_path
+        
         self.load_video(video)
-        llm_provider, llm_name, api_key, max_tokens, temperature = get_llm_info("summarizer")
+        llm_provider, llm_name, api_key, max_tokens, temperature = get_llm_info("summarize")
 
         # Read SRT content from the file
         try:
-            with open(self._txt_path, 'r', encoding='utf-8') as file:
+            with open(txt_path, 'r', encoding='utf-8') as file:
                 content = file.read()
         except FileNotFoundError:
-            self.process(video)
-            with open(self._txt_path, 'r', encoding='utf-8') as file:
+            self.extract_fulltext(video)
+            with open(txt_path, 'r', encoding='utf-8') as file:
                 content = file.read()
         try:
             # Use LiteLLM to get response from the specified provider
@@ -307,3 +414,11 @@ class Transcriber:
             print(summary_text)
         
         return summary_text
+
+if __name__ == "__main__":
+    from yourtube import Database
+    from yourtube.utils import get_db_path
+    db = Database(db_path=get_db_path())
+    transcriber = Transcriber()
+    video = db.get_video(video_id="yarle_bZDCs")
+    transcriber.process_fulltext(video)

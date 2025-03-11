@@ -13,13 +13,23 @@
             "api_key": "your anthropic api key"
         },
         {
-            "title": "some other model",
-            "provider": "some other provider",
-            "name": "xxx",
+            "title": "deepseek",
+            "provider": "deepseek",
+            "name": "deepseek-chat",
             "api_key": "your_api_key"
         }
     ],
-    "summarizer": {
+    "transcribe": {
+        "model": "whisper",
+        "size": "small",
+        "temperature": 0.0
+    },
+    "process_fulltext": {
+        "model": "deepseek",
+        "temperature": 1.0,
+        "max_tokens": 4096
+    }
+    "summarize": {
         "model_title": "openai-gpt-4o",
         "max_tokens": 4096,
         "temperature": 0.8

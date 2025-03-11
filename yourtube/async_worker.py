@@ -16,6 +16,7 @@ class VideoProcessingQueue:
         self.worker_thread = None
         self.running = False
         self.status_dict = {}  # Dictionary to store status of each video: 'queued', 'processing', 'completed', 'error'
+        self.queued_tasks = []  # List to track tasks in the queue
 
     def start_worker(self, process_func):
         """Start the worker thread if not already running"""
@@ -41,6 +42,9 @@ class VideoProcessingQueue:
                     # Get task from queue
                     task = self.queue.get()
                     video_id = task.get('video_id')
+                    
+                    # Remove from queued_tasks list
+                    self.queued_tasks = [t for t in self.queued_tasks if t.get('video_id') != video_id]
                     
                     # Update status
                     self.status_dict[video_id] = 'processing'
@@ -79,7 +83,14 @@ class VideoProcessingQueue:
             logger.info(f"Video {video_id} is already in queue or being processed")
             return False
         
-        # Add to queue
+        # Update is_last flag for previous tasks
+        for task in self.queued_tasks:
+            if task.get('is_last', False):
+                task['is_last'] = False
+        
+        # Add to queue with is_last=True
+        kwargs['is_last'] = True
+        self.queued_tasks.append(kwargs)
         self.status_dict[video_id] = 'queued'
         self.queue.put(kwargs)
         logger.info(f"Added video {video_id} to processing queue")

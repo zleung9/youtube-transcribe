@@ -104,7 +104,7 @@ class TestReporter(unittest.TestCase):
         
         # Set up mock returns
         mock_transcriber.transcribe.return_value = "Test transcription"
-        mock_transcriber.process.return_value = "Test processing"
+        mock_transcriber.extract_fulltext.return_value = "Test processing"
         mock_transcriber.summarize.return_value = "Test summary"
         
         # Call the method
@@ -113,7 +113,7 @@ class TestReporter(unittest.TestCase):
         # Verify all expected methods were called
         test_video.get.assert_called_once_with(test_video.video_id, download_video=True)
         mock_transcriber.transcribe.assert_called_once_with(test_video)
-        mock_transcriber.process.assert_called_once_with(test_video)
+        mock_transcriber.extract_fulltext.assert_called_once_with(test_video)
         mock_transcriber.summarize.assert_called_once_with(test_video)
         mock_db.add_video.assert_called_once_with(test_video)
 
