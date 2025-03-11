@@ -62,10 +62,12 @@ def preprocess_audio(audio_path):
     try:
         # Convert to 16kHz mono WAV
         output_path = audio_path.replace('.mp4', '.wav')
-        ffmpeg.input(audio_path).output(output_path, 
-                                         ar='16000',    # Sample rate
-                                         ac=1,          # Mono audio
-                                         acodec='pcm_s16le').run(overwrite_output=True)
+        ffmpeg.input(audio_path).output(
+            output_path, 
+            ar='16000',    # Sample rate
+            ac=1,          # Mono audio
+            acodec='pcm_s16le'
+        ).run(overwrite_output=True, quiet=True)
         print(f"Audio preprocessed to: {output_path}")
         return output_path
     except Exception as e:
@@ -351,7 +353,7 @@ class Transcriber:
         
         return processed_content
     
-    
+
 
     def summarize(self, video: Video, verbose=False):
         """

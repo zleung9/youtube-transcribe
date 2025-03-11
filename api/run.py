@@ -4,7 +4,7 @@ import logging
 import json
 import glob
 from logging.handlers import RotatingFileHandler
-from flask import Flask, render_template, redirect, url_for, flash, request, jsonify
+from flask import Flask, render_template, redirect, url_for, flash, request, jsonify, after_this_request
 from flask_cors import CORS 
 from yourtube import Database, Video, Transcriber
 from yourtube.utils import get_download_dir, get_db_path, get_config_path, load_config, extract_youtube_id
@@ -59,6 +59,9 @@ CORS(app, resources={
 })
 app.secret_key = os.urandom(24)
 
+# Completely disable Werkzeug logging
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)  # Only show ERROR and above, suppressing INFO
 
 def get_file_path(video_id, file_type, language=None):
     """Get file path based on video ID and type."""
@@ -402,6 +405,16 @@ def process_video(force=True, transcribe=True, process=True, summarize=True):
 
 @app.route('/video-status/<video_id>', methods=['GET'])
 def video_status(video_id):
+    # Disable logging for this specific endpoint completely
+    log = logging.getLogger('werkzeug')
+    log.disabled = True
+    
+    # Re-enable logging after the request
+    @after_this_request
+    def enable_logging(response):
+        log.disabled = False
+        return response
+    
     status = video_queue.get_status(video_id)
     return jsonify({'status': status or 'unknown'})
 

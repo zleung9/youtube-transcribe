@@ -318,7 +318,8 @@ function startStatusPolling(videoId) {
     // Poll for status updates every 2 seconds
     const pollInterval = setInterval(async () => {
         try {
-            const response = await fetch(`/video-status/${videoId}`);
+            // Add nolog=1 parameter to suppress logging on the server side
+            const response = await fetch(`/video-status/${videoId}?nolog=1`);
             const data = await response.json();
             
             if (data.status === 'completed' || data.status === 'error') {
