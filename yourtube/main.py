@@ -133,7 +133,7 @@ def process_video_pipeline(
     # Download and transcribe video flow
     video = monitor.download(video_id)
 
-    model_size = config.get("transcriber", {}).get("size", "base")
+    model_size = config.get("transcribe", {}).get("size", "base")
     if transcribe and not video.transcript:
         print(f"Transcribing video")
         if not transcriber.model:
@@ -145,6 +145,7 @@ def process_video_pipeline(
     if process:
         print(f"Processing SRT file.")
         _ = transcriber.extract_fulltext(video)
+        _ = transcriber.process_fulltext(video)
 
     if summarize:
         print(f"Summarizing transcription.")
