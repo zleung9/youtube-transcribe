@@ -254,17 +254,23 @@
                 <div class="bg-white rounded-lg shadow chat-container">
                     <!-- Tabs Header -->
                     <div class="flex border-b">
-                        <button onclick="switchTab('transcript')" 
-                                class="tab-button" 
-                                data-tab="transcript"
-                                disabled>
-                            Transcript
-                        </button>
                         <button onclick="switchTab('summary')" 
                                 class="tab-button" 
                                 data-tab="summary"
                                 disabled>
                             Summary
+                        </button>
+                        <button onclick="switchTab('script')" 
+                                class="tab-button" 
+                                data-tab="script"
+                                disabled>
+                            Script
+                        </button>
+                        <button onclick="switchTab('transcript')" 
+                                class="tab-button" 
+                                data-tab="transcript"
+                                disabled>
+                            Transcript
                         </button>
                         <button onclick="switchTab('chat')" 
                                 class="tab-button" 
@@ -281,9 +287,23 @@
                     </div>
 
                     <!-- Chat Tab -->
-                    <div id="chat-tab" class="tab-content active">
+                    <div id="chat-tab" class="tab-content">
                         <div class="message-container" id="chat-messages">
                             <!-- Messages will be populated here -->
+                        </div>
+                    </div>
+
+                    <!-- Summary tab -->
+                    <div id="summary-tab" class="tab-content active bg-gray-200 p-2">
+                        <div id="summary-content" class="markdown-body">
+                            <!-- Summary content will be loaded here -->
+                        </div>
+                    </div>
+
+                    <!-- Script tab -->
+                    <div id="script-tab" class="tab-content bg-gray-200 p-2">
+                        <div id="script-content" class="markdown-body">
+                            <!-- Script content will be loaded here -->
                         </div>
                     </div>
 
@@ -291,13 +311,6 @@
                     <div id="transcript-tab" class="tab-content bg-gray-200 p-2">
                         <div id="transcript-content" class="markdown-body">
                             <!-- Transcript content will be loaded here -->
-                        </div>
-                    </div>
-                    
-                    <!-- Summary tab -->
-                    <div id="summary-tab" class="tab-content bg-gray-200 p-2">
-                        <div id="summary-content" class="markdown-body">
-                            <!-- Summary content will be loaded here -->
                         </div>
                     </div>
 

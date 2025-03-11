@@ -37,7 +37,7 @@ async function selectVideo(videoId) {
     // Load content once
     await loadTranscriptAndSummary(videoId);
     
-    // Switch to first available tab
+    // Switch to summary tab by default
     switchTab('summary');
 }
 
@@ -61,10 +61,11 @@ async function loadTranscriptAndSummary(videoId) {
     highlightSelectedVideo(videoId);
     
     try {
-        // Load both transcript and summary
-        const [transcriptResponse, summaryResponse] = await Promise.all([
+        // Load transcript, summary, and script
+        const [transcriptResponse, summaryResponse, scriptResponse] = await Promise.all([
             fetch(`/transcript/${videoId}`),
-            fetch(`/summary/${videoId}`)
+            fetch(`/summary/${videoId}`),
+            fetch(`/script/${videoId}`)
         ]);
 
         // Check response status before trying to parse JSON
@@ -80,9 +81,10 @@ async function loadTranscriptAndSummary(videoId) {
         }
 
         // Parse JSON responses
-        const [transcriptData, summaryData] = await Promise.all([
+        const [transcriptData, summaryData, scriptData] = await Promise.all([
             transcriptResponse.json(),
-            summaryResponse.json()
+            summaryResponse.json(),
+            scriptResponse.json()
         ]);
 
         // Update transcript tab
@@ -102,11 +104,22 @@ async function loadTranscriptAndSummary(videoId) {
         } else {
             summaryContent.innerHTML = '<p class="text-gray-500">No summary available</p>';
         }
+
+        // Update script tab
+        const scriptContent = document.getElementById('script-content');
+        if (scriptData.error) {
+            scriptContent.innerHTML = `<p class="text-red-500">${scriptData.error}</p>`;
+        } else if (scriptData.content) {
+            scriptContent.innerHTML = marked.parse(scriptData.content);
+        } else {
+            scriptContent.innerHTML = '<p class="text-gray-500">No script available</p>';
+        }
     } catch (error) {
         console.error('Error loading content:', error);
         const errorMessage = error.message || 'Failed to load content';
         document.getElementById('transcript-content').innerHTML = `<p class="text-red-500">${errorMessage}</p>`;
         document.getElementById('summary-content').innerHTML = `<p class="text-red-500">${errorMessage}</p>`;
+        document.getElementById('script-content').innerHTML = `<p class="text-red-500">${errorMessage}</p>`;
     }
 }
 

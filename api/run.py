@@ -476,6 +476,45 @@ def save_config():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/script/<video_id>')
+def view_script(video_id):
+    try:
+        video = db.get_video(video_id=video_id)
+        
+        if not video:
+            logging.error(f"Video not found in database: {video_id}")
+            return jsonify({"error": "Video not found in database"}), 404
+        
+        if not video.language:
+            logging.error(f"Language not set for video: {video_id}")
+            return jsonify({"error": "Video language not set"}), 400
+            
+        # Construct the path to the processed.txt file
+        script_path = os.path.join(DOWNLOAD_DIR, f"{video_id}.{video.language}.processed.txt")
+        logging.info(f"Checking script at path: {script_path}")
+        
+        if not os.path.exists(script_path):
+            logging.error(f"Script file not found: {script_path}")
+            return jsonify({"error": "Script file not found"}), 404
+        
+        try:
+            with open(script_path, 'r', encoding='utf-8') as f:
+                script_text = f.read()
+            if not script_text.strip():
+                logging.error(f"Empty script file: {script_path}")
+                return jsonify({"error": "Script file is empty"}), 500
+            return jsonify({"content": script_text})
+        except PermissionError:
+            logging.error(f"Permission denied reading script: {script_path}")
+            return jsonify({"error": "Permission denied reading script file"}), 403
+        except Exception as e:
+            logging.error(f"Error reading script: {str(e)}")
+            return jsonify({"error": f"Error reading script: {str(e)}"}), 500
+    except Exception as e:
+        logging.error(f"Unexpected error in view_script: {str(e)}")
+        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
+
+
 def main():
     import webbrowser
     from threading import Timer
