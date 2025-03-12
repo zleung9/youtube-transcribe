@@ -79,8 +79,8 @@ def preprocess_audio(audio_path):
         return None
         
 class Transcriber:
-    def __init__(self, video: Video|None=None, model_size=None):
-        
+    def __init__(self, video: Video|None=None, model_size=None, config=None):
+        self._config = config   
         self.working_dir = get_download_dir()
         self.model_size = model_size
         self.device = None
