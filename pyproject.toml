@@ -1,6 +1,6 @@
 [project]
 name = "video-curator"
-version = "1.2.0"
+version = "1.2.1"
 description = "Your own youtube assistant"
 readme = "README.md"
 requires-python = ">=3.10"
