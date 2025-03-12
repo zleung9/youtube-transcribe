@@ -8,8 +8,9 @@ import os
 
 class Monitor:
     """Base class for platform-specific monitors"""
-    def __init__(self):
+    def __init__(self, config: Dict):
         self._default_path = get_download_dir()
+        self._config = config
     
     def check_updates(self, handle: str, max_results: int = 10, until_date: str="", end_date: str="") -> List[Video]:
         """Get latest videos from a single channel. 
@@ -31,8 +32,8 @@ class Monitor:
 
 
 class YoutubeMonitor(Monitor):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, config: Dict):
+        super().__init__(config)
         self.ydl_opts = {
             'quiet': True,
             'extract_flat': True,
@@ -128,9 +129,9 @@ class YoutubeMonitor(Monitor):
         video_title = info.get('title', 'Untitled')
 
         # get the srt path
-        language = info.get("language")
-        if not language:
-            language = "zh"
+        language = self._config.get("default_lang", "auto") # get the language from the config: auto, zh, en
+        if language == "auto":
+            language = info.get("language", "zh") # if auto, get the language from the video info
         srt_path = os.path.join(self._default_path, f'{video_id}.{language}.srt')
         if not os.path.exists(srt_path):
             srt_path = None

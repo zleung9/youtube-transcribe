@@ -20,10 +20,10 @@ DB_PATH = get_db_path()
 print(f"Download directory: {DOWNLOAD_DIR}")
 print(f"Database path: {DB_PATH}")
 
-db = Database(db_path=DB_PATH)
-monitor = YoutubeMonitor()
-transcriber = Transcriber()
 config =load_config() #check if config.json exists, if not create it from template
+db = Database(db_path=DB_PATH)
+monitor = YoutubeMonitor(config=config)
+transcriber = Transcriber(config=config)
 video_queue.start_worker(process_video_pipeline) # Start the video processing worker
 
 # Flask app setup

@@ -176,8 +176,8 @@ def main():
     process_video_pipeline(
         config=config,
         database=Database(),
-        monitor=YoutubeMonitor(),
-        transcriber=Transcriber(),
+        monitor=YoutubeMonitor(config=config),
+        transcriber=Transcriber(config=config),
         url=args.youtube_url,
         transcribe=args.transcribe,
         process=args.extract_fulltext,
