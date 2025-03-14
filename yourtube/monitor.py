@@ -127,11 +127,14 @@ class YoutubeMonitor(Monitor):
         # load info either from local json or downlaod
         info = download_youtube_video(path=self._default_path, video_id=video_id, video=False)
         video_title = info.get('title', 'Untitled')
-
-        # get the srt path
-        language = self._config.get("default_lang", "auto") # get the language from the config: auto, zh, en
-        if language == "auto":
+        
+        # get the language from the config: auto, zh, en, and info
+        if 'subtitles' in info and info['subtitles']:
+            language = next((lang_code for lang_code in info['subtitles'] if lang_code in ['en', 'zh']), None)
+        else:
             language = info.get("language", "zh") # if auto, get the language from the video info
+        
+        # get srt path
         srt_path = os.path.join(self._default_path, f'{video_id}.{language}.srt')
         if not os.path.exists(srt_path):
             srt_path = None
@@ -156,13 +159,6 @@ class YoutubeMonitor(Monitor):
             'upload_date': info.get('upload_date'),
             'transcript': True if srt_path else False
         })
-
-        # Convert upload_date string to datetime object
-        if isinstance(video.upload_date, str):
-            video.upload_date = datetime.strptime(video.upload_date, '%Y%m%d')
-
-        # Update process date
-        video.process_date = datetime.now()
 
         return video
 
