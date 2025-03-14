@@ -1,6 +1,7 @@
 import os
 import glob
 from uuid import uuid4
+from datetime import datetime
 from abc import ABC, abstractmethod
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -83,7 +84,22 @@ class Video(Base):
         for key, value in kwargs.items():
             if hasattr(self, key):
                 setattr(self, key, value)
+        
+        if isinstance(self.upload_date, str):
+            try:
+                self.upload_date = datetime.strptime(self.upload_date, '%Y%m%d')
+            except ValueError:
+                self.upload_date = datetime.strptime(self.upload_date.split('T')[0], '%Y-%m-%d')
+        self.process_date = datetime.now()
 
+        #scan the folder to see if transcript, fulltext, and summary files exist
+        for file in glob.glob(f"{get_download_dir()}/{self.video_id}.*", recursive=True):
+            if file.endswith(f'{self.language}.srt'):
+                self.transcript = True
+            elif file.endswith(f'{self.language}.txt'):
+                self.fulltext = True
+            elif file.endswith(f'{self.language}.md'):
+                self.summary = True
 
 class Database(ABC):
     def __init__(self, db_path=None):
