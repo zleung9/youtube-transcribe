@@ -258,7 +258,7 @@ class Transcriber:
         with open(self._txt_path, 'w', encoding='utf-8') as txt_file:
             txt_file.write(processed_text)
         
-        print(f"Converted {self._srt_path} to {self._txt_path}")
+        print(f"Converted srt to txt: {self._txt_path}")
         return processed_text
     
     def process_fulltext(self, video: Video, chunk_size: int=2000, overlap: int=200):

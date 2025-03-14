@@ -133,8 +133,8 @@ def process_video_pipeline(
     # Download and transcribe video flow
     video = monitor.download(video_id)
 
-    model_size = config.get("transcribe", {}).get("size", "base")
     if transcribe and not video.transcript:
+        model_size = config.get("transcribe", {}).get("size", "base")
         print(f"Transcribing video")
         if not transcriber.model:
             transcriber.load_model(model_size=model_size)
@@ -180,7 +180,7 @@ def main():
         transcriber=Transcriber(config=config),
         url=args.youtube_url,
         transcribe=args.transcribe,
-        process=args.extract_fulltext,
+        process=args.process,
         summarize=args.summarize,
         force=args.force
     )
