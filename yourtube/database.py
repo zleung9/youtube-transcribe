@@ -1,6 +1,7 @@
 import os
 import glob
 from uuid import uuid4
+from datetime import datetime
 from abc import ABC, abstractmethod
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -83,7 +84,22 @@ class Video(Base):
         for key, value in kwargs.items():
             if hasattr(self, key):
                 setattr(self, key, value)
+        
+        if isinstance(self.upload_date, str):
+            try:
+                self.upload_date = datetime.strptime(self.upload_date, '%Y%m%d')
+            except ValueError:
+                self.upload_date = datetime.strptime(self.upload_date.split('T')[0], '%Y-%m-%d')
+        self.process_date = datetime.now()
 
+        #scan the folder to see if transcript, fulltext, and summary files exist
+        for file in glob.glob(f"{get_download_dir()}/{self.video_id}.*", recursive=True):
+            if file.endswith(f'{self.language}.srt'):
+                self.transcript = True
+            elif file.endswith(f'{self.language}.txt'):
+                self.fulltext = True
+            elif file.endswith(f'{self.language}.md'):
+                self.summary = True
 
 class Database(ABC):
     def __init__(self, db_path=None):
@@ -112,14 +128,21 @@ class Database(ABC):
             existing_video = self.get_video(video_id=video.video_id)
             
             if existing_video:
-                # Get attributes from the new video object, excluding 'id'
-                update_data = video.to_dict()
-                update_data.pop('id', None)  # Remove the id field
+                # Instead of updating, delete the existing video and add the new one
+                # This ensures a clean state and avoids session tracking issues
                 
-                # Use the Video's update method with filtered attributes
-                existing_video.update(**update_data)
+                # Store the ID of the existing video
+                existing_id = existing_video.id
                 
-                # Commit the changes
+                # Remove the existing video from the session
+                self.session.delete(existing_video)
+                self.session.commit()
+                
+                # Set the ID on the new video to maintain the same primary key
+                video.id = existing_id
+                
+                # Add the new video to the session
+                self.session.add(video)
                 self.session.commit()
                 return True
             else:

@@ -207,28 +207,25 @@ def view_transcript(video_id):
         
         if not transcript_path:
             logging.error(f"Invalid transcript path for video: {video_id}")
-            return jsonify({"error": "Invalid transcript path"}), 500
+            return jsonify({"content": ""})  # Return empty content instead of error
             
         if not os.path.exists(transcript_path):
             logging.error(f"Transcript file not found: {transcript_path}")
-            return jsonify({"error": "Transcript file not found"}), 404
+            return jsonify({"content": ""})  # Return empty content instead of error
         
         try:
             with open(transcript_path, 'r', encoding='utf-8') as f:
                 transcript_text = f.read()
             if not transcript_text.strip():
                 logging.error(f"Empty transcript file: {transcript_path}")
-                return jsonify({"error": "Transcript file is empty"}), 500
+                return jsonify({"content": ""})  # Return empty content
             return jsonify({"content": transcript_text})
-        except PermissionError:
-            logging.error(f"Permission denied reading transcript: {transcript_path}")
-            return jsonify({"error": "Permission denied reading transcript file"}), 403
         except Exception as e:
             logging.error(f"Error reading transcript: {str(e)}")
-            return jsonify({"error": f"Error reading transcript: {str(e)}"}), 500
+            return jsonify({"content": ""})  # Return empty content instead of error
     except Exception as e:
         logging.error(f"Unexpected error in view_transcript: {str(e)}")
-        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
+        return jsonify({"content": ""})  # Return empty content instead of error
 
 
 @app.route('/summary/<video_id>')
@@ -249,28 +246,25 @@ def view_summary(video_id):
         
         if not summary_path:
             logging.error(f"Invalid summary path for video: {video_id}")
-            return jsonify({"error": "Invalid summary path"}), 500
+            return jsonify({"content": ""})  # Return empty content instead of error
             
         if not os.path.exists(summary_path):
             logging.error(f"Summary file not found: {summary_path}")
-            return jsonify({"error": "Summary file not found"}), 404
+            return jsonify({"content": ""})  # Return empty content instead of error
         
         try:
             with open(summary_path, 'r', encoding='utf-8') as f:
                 summary_text = f.read()
             if not summary_text.strip():
                 logging.error(f"Empty summary file: {summary_path}")
-                return jsonify({"error": "Summary file is empty"}), 500
+                return jsonify({"content": ""})  # Return empty content
             return jsonify({"content": summary_text})
-        except PermissionError:
-            logging.error(f"Permission denied reading summary: {summary_path}")
-            return jsonify({"error": "Permission denied reading summary file"}), 403
         except Exception as e:
             logging.error(f"Error reading summary: {str(e)}")
-            return jsonify({"error": f"Error reading summary: {str(e)}"}), 500
+            return jsonify({"content": ""})  # Return empty content instead of error
     except Exception as e:
         logging.error(f"Unexpected error in view_summary: {str(e)}")
-        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
+        return jsonify({"content": ""})  # Return empty content instead of error
 
 
 @app.route('/save-notes/<video_id>', methods=['POST'])
@@ -310,8 +304,8 @@ def video_content(video_id):
         video = db.get_video(video_id=video_id)
         if not video:
             return jsonify({
-                'transcript': {'error': 'Video not found'},
-                'summary': {'error': 'Video not found'}
+                'transcript': {'content': ""},
+                'summary': {'content': ""}
             }), 404
 
         # Get transcript
@@ -322,7 +316,8 @@ def video_content(video_id):
                 with open(transcript_path, 'r', encoding='utf-8') as f:
                     transcript_text = f.read()
             except Exception as e:
-                transcript_text = f"Error reading transcript: {str(e)}"
+                logging.error(f"Error reading transcript: {str(e)}")
+                # Keep transcript_text as empty string
 
         # Get summary
         summary_text = ""
@@ -332,20 +327,25 @@ def video_content(video_id):
                 with open(summary_path, 'r', encoding='utf-8') as f:
                     summary_text = f.read()
             except Exception as e:
-                summary_text = f"Error reading summary: {str(e)}"
+                logging.error(f"Error reading summary: {str(e)}")
+                # Keep summary_text as empty string
 
         return jsonify({
             'transcript': {
                 'content': transcript_text,
-                'error': None if transcript_text else 'No transcript available'
+                'error': None  # No error message even if empty
             },
             'summary': {
                 'content': summary_text,
-                'error': None if summary_text else 'No summary available'
+                'error': None  # No error message even if empty
             }
         })
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logging.error(f"Unexpected error in video_content: {str(e)}")
+        return jsonify({
+            'transcript': {'content': ""},
+            'summary': {'content': ""}
+        })
 
 
 @app.route('/process-video', methods=['POST'])
@@ -387,7 +387,7 @@ def process_video(force=True, transcribe=True, process=True, summarize=True):
             process=process,
             summarize=summarize,
             video_id=video_id,
-            is_last=True
+            is_last=False
         )
 
         # Return immediately with success status and video info
@@ -495,24 +495,21 @@ def view_script(video_id):
         
         if not os.path.exists(script_path):
             logging.error(f"Script file not found: {script_path}")
-            return jsonify({"error": "Script file not found"}), 404
+            return jsonify({"content": ""})  # Return empty content instead of error
         
         try:
             with open(script_path, 'r', encoding='utf-8') as f:
                 script_text = f.read()
             if not script_text.strip():
                 logging.error(f"Empty script file: {script_path}")
-                return jsonify({"error": "Script file is empty"}), 500
+                return jsonify({"content": ""})  # Return empty content
             return jsonify({"content": script_text})
-        except PermissionError:
-            logging.error(f"Permission denied reading script: {script_path}")
-            return jsonify({"error": "Permission denied reading script file"}), 403
         except Exception as e:
             logging.error(f"Error reading script: {str(e)}")
-            return jsonify({"error": f"Error reading script: {str(e)}"}), 500
+            return jsonify({"content": ""})  # Return empty content instead of error
     except Exception as e:
         logging.error(f"Unexpected error in view_script: {str(e)}")
-        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
+        return jsonify({"content": ""})  # Return empty content instead of error
 
 
 def main():
