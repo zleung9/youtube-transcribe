@@ -1,13 +1,25 @@
 import os
 import argparse
 from yourtube import Database, Transcriber
-from yourtube.utils import extract_youtube_id, load_config
+from yourtube.utils import extract_youtube_id, load_config, get_download_dir, get_db_path
 from yourtube.monitor import YoutubeMonitor, BilibiliMonitor
 from yourtube.reporter import Reporter
 from typing import Dict
 import asyncio
 import schedule
 import time
+
+# global variables setup: dadtabase, monitor, transcriber, config, video_queue
+DOWNLOAD_DIR = get_download_dir()
+DB_PATH = get_db_path()
+print(f"Download directory: {DOWNLOAD_DIR}")
+print(f"Database path: {DB_PATH}")
+
+config =load_config() #check if config.json exists, if not create it from template
+db = Database(db_path=DB_PATH)
+monitor = YoutubeMonitor(config=config)
+transcriber = Transcriber(config=config)
+
 
 def initialize_monitors(config: Dict) -> Dict:
     """Initialize monitors for each platform"""
@@ -161,6 +173,9 @@ def process_video_pipeline(
     return 0
 
 def main():
+    
+    global config, db, monitor, transcriber
+
     parser = argparse.ArgumentParser(description="Transcribe video to SRT format or process an existing SRT file.")
     parser.add_argument("-y", '--youtube_url', type=str, help="YouTube video url to download")
     parser.add_argument("-t", "--transcribe", action="store_true", default=False, help="Whether to transcribe a video file.")
@@ -175,9 +190,9 @@ def main():
     config = load_config()
     process_video_pipeline(
         config=config,
-        database=Database(),
-        monitor=YoutubeMonitor(config=config),
-        transcriber=Transcriber(config=config),
+        database=db,
+        monitor=monitor,
+        transcriber=transcriber,
         url=args.youtube_url,
         transcribe=args.transcribe,
         process=args.process,

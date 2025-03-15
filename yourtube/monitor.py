@@ -132,7 +132,9 @@ class YoutubeMonitor(Monitor):
         if 'subtitles' in info and info['subtitles']:
             language = next((lang_code for lang_code in info['subtitles'] if lang_code in ['en', 'zh']), None)
         else:
-            language = info.get("language", "zh") # if auto, get the language from the video info
+            language = info.get("language") # if auto, get the language from the video info
+            if language is None:
+                language = "zh"
         
         # get srt path
         srt_path = os.path.join(self._default_path, f'{video_id}.{language}.srt')
