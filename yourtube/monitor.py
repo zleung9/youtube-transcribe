@@ -1,7 +1,7 @@
 from typing import List, Dict, Optional
 from datetime import datetime
 from yourtube import Video
-from yourtube.utils import get_download_dir, convert_vtt_to_srt, download_youtube_video
+from yourtube.utils import get_download_dir, convert_vtt_to_srt, download_youtube_video, load_config
 import yt_dlp
 import os
 
@@ -164,7 +164,47 @@ class YoutubeMonitor(Monitor):
 
         return video
 
-    
+
+    def get_watch_later_playlist(self, max_results=10, cookie_path=None):
+        """
+        Fetches videos from your YouTube 'Watch Later' playlist.
+        
+        Parameters:
+            - max_results: Maximum number of videos to fetch (default: 10)
+            
+        Returns:
+            - List of video IDs from your Watch Later playlist
+        """
+        # URL for Watch Later playlist
+        url = "https://www.youtube.com/playlist?list=WL"
+        
+        if cookie_path is None:
+            cookie_path = os.path.join(self._default_path, 'youtube_cookies.txt')
+        
+        # Options for yt-dlp with authentication
+        ydl_opts = {
+            'quiet': True,
+            'extract_flat': True,  # Extract metadata without downloading
+            'playlistend': max_results,  # Fetch up to max_results videos
+            'cookiefile': cookie_path,  # Path to your cookies file
+            # Alternatively, you can use username and password:
+            # 'username': 'your_youtube_username',
+            # 'password': 'your_youtube_password',
+        }
+        
+        video_ids = []
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                
+                if 'entries' in info:
+                    for video in info['entries']:
+                        video_ids.append(video['id'])
+        except Exception as e:
+            print(f"Error accessing Watch Later playlist: {str(e)}")
+        
+        return video_ids
+
 
 class BilibiliMonitor(Monitor):
     def __init__(self, config: Dict):
@@ -178,10 +218,9 @@ class BilibiliMonitor(Monitor):
         
 
 if __name__ == "__main__":
-    monitor = YoutubeMonitor()
-    video_ids = monitor.check_updates("DavidOndrej", max_results=2)
+    monitor = YoutubeMonitor(config=load_config())
+    video_ids = monitor.get_watch_later_playlist(
+        max_results=10, 
+        cookie_path="/Users/zhuliang/Downloads/youtube_cookies.txt"
+    )
     print(video_ids)
-    for id in video_ids[1:]:
-        video = monitor.download(id, download_video=True)
-        print(video)
-        break

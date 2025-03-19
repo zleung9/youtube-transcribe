@@ -6,6 +6,9 @@ from webvtt import WebVTT
 import litellm
 import torch
 import yt_dlp
+from selenium import webdriver
+import logging
+import browser_cookie3
 
 def extract_youtube_id(url):
     """Extract video ID from a YouTube URL. It can be a short URL, long URL, or live URL.
@@ -170,7 +173,7 @@ def download_youtube_video(
             'subtitlesformat': 'srt/vtt',
             'subtitleslangs': langs,
             'skip_download': not video
-        }
+    }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
@@ -223,3 +226,59 @@ def clean_srt_file(input_file, output_file):
     
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(cleaned_content)
+
+
+def load_youtube_cookies(driver: webdriver.Chrome, cookie_file_path: str):
+    """
+    Load YouTube cookies from a JSON file into Selenium WebDriver.
+    Make sure to call this after navigating to a YouTube domain page.
+    
+    Args:
+        driver: Selenium WebDriver instance
+        cookie_file_path: Path to the JSON cookie file
+    """
+    # First navigate to YouTube domain (required before setting cookies)
+    driver.get("https://www.youtube.com")
+    
+    try:
+        with open(cookie_file_path, 'r') as file:
+            cookies = json.load(file)
+            
+            for cookie in cookies:
+                # Create cookie dictionary with required fields
+                cookie_dict = {
+                    'name': cookie['name'],
+                    'value': cookie['value'],
+                    'domain': cookie['domain'],
+                    'path': cookie['path'],
+                }
+                
+                # Add optional fields if they exist
+                if not cookie.get('session', False):  # Only add expiry for non-session cookies
+                    if 'expirationDate' in cookie:
+                        cookie_dict['expiry'] = int(cookie['expirationDate'])
+                
+                if 'secure' in cookie:
+                    cookie_dict['secure'] = cookie['secure']
+                
+                if 'httpOnly' in cookie:
+                    cookie_dict['httpOnly'] = cookie['httpOnly']
+                
+                try:
+                    driver.add_cookie(cookie_dict)
+                except Exception as e:
+                    print(f"Failed to load cookie {cookie['name']}: {str(e)}")
+                    continue
+                    
+        # Refresh the page to apply cookies
+        driver.refresh()
+        print("Successfully loaded YouTube cookies")
+        
+    except Exception as e:
+        print(f"Error loading cookies: {str(e)}")
+        raise
+
+#  Usage example:
+if __name__ == "__main__":
+    driver = webdriver.Chrome()
+    load_youtube_cookies(driver, "/Users/zhuliang/Downloads/youtube_cookies.json")
