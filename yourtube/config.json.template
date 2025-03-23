@@ -28,7 +28,7 @@
         "model": "deepseek",
         "temperature": 1.0,
         "max_tokens": 4096
-    }
+    },
     "summarize": {
         "model_title": "openai-gpt-4o",
         "max_tokens": 4096,
@@ -39,12 +39,14 @@
         "api_key": "YOUR_YOUTUBE_API_KEY",
         "channels": [
             {
+                "channel_handle": "@some_handle",
                 "channel_id": "CHANNEL_ID1",
-                "check_interval": 3600
-            },
+                "language": "zh"
+            }
             {
+                "channel_handle": "@some_handle2",
                 "channel_id": "CHANNEL_ID2",
-                "check_interval": 7200
+                "language": "en"
             }
         ]
     },

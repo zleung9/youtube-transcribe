@@ -223,3 +223,37 @@ def clean_srt_file(input_file, output_file):
     
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(cleaned_content)
+
+def get_language(info, config=None):
+    """Get the language of the video from the config and info_json"""
+    # if defined in config, return the language
+    channel_id = info.get("channel_id", None)
+    channel_handle = info.get("uploader_id", None)
+    channels_in_config = config.get("youtube", {}).get("channels", [])
+    for channel in channels_in_config:
+        if channel.get("channel_id") == channel_id or channel.get("channel_handle") == channel_handle:
+            return channel.get("language")
+    # if not defined in config, get the language from the video info
+    if 'subtitles' in info and info['subtitles']: # get the language from subtitles information
+        language_codes = [lang_code for lang_code in info['subtitles']]
+        for lang_code in language_codes:
+            if lang_code.startswith('zh'):
+                language = 'zh'
+                break
+        else:
+            language = 'en'
+    else:
+            language = info.get("language") # if auto, get the language from explicit language information
+            if language is None:
+                language = config.get("default_lang")
+    return language
+
+#  Usage example:
+if __name__ == "__main__":
+    # driver = webdriver.Chrome()
+    # load_youtube_cookies(driver, "/Users/zhuliang/Downloads/youtube_cookies.json")
+    config = load_config()
+    with open("yourtube/downloads/GU1WRD_v3h8.info.json", "r") as f:
+        info = json.load(f)
+    language = get_language(info=info, config=config)
+    print(language)

@@ -1,7 +1,7 @@
 from typing import List, Dict, Optional
 from datetime import datetime
 from yourtube import Video
-from yourtube.utils import get_download_dir, convert_vtt_to_srt, download_youtube_video
+from yourtube.utils import get_download_dir, convert_vtt_to_srt, download_youtube_video, load_config, get_language
 import yt_dlp
 import os
 
@@ -127,14 +127,7 @@ class YoutubeMonitor(Monitor):
         # load info either from local json or downlaod
         info = download_youtube_video(path=self._default_path, video_id=video_id, video=False)
         video_title = info.get('title', 'Untitled')
-        
-        # get the language from the config: auto, zh, en, and info
-        if 'subtitles' in info and info['subtitles']:
-            language = next((lang_code for lang_code in info['subtitles'] if lang_code in ['en', 'zh']), None)
-        else:
-            language = info.get("language") # if auto, get the language from the video info
-            if language is None:
-                language = "zh"
+        language = get_language(info, config=self._config)
         
         # get srt path
         srt_path = os.path.join(self._default_path, f'{video_id}.{language}.srt')
