@@ -105,7 +105,7 @@ def scan_downloads_folder(downloads_path):
             video_id = os.path.basename(json_file).replace('.info.json', '')
             
             # Check if video exists in database
-            existing_video = db.get_video(video_id=video_id)
+            existing_video = db.get_videos(video_id=video_id)[0]
             
             if existing_video:
                 # Update existing video
@@ -181,7 +181,7 @@ def refresh_library():
 @app.route('/video/<video_id>', methods=['GET'])
 def video_detail(video_id):
     """Get details for a specific video"""
-    video = db.get_video(video_id=video_id)
+    video = db.get_videos(video_id=video_id)[0]
     if not video:
         return jsonify({'error': 'Video not found'}), 404
     
@@ -192,7 +192,7 @@ def video_detail(video_id):
 @app.route('/transcript/<video_id>')
 def view_transcript(video_id):
     try:
-        video = db.get_video(video_id=video_id)
+        video = db.get_videos(video_id=video_id)[0]
         
         if not video:
             logging.error(f"Video not found in database: {video_id}")
@@ -231,7 +231,7 @@ def view_transcript(video_id):
 @app.route('/summary/<video_id>')
 def view_summary(video_id):
     try:
-        video = db.get_video(video_id=video_id)
+        video = db.get_videos(video_id=video_id)[0]
         
         if not video:
             logging.error(f"Video not found in database: {video_id}")
@@ -282,7 +282,7 @@ def save_notes(video_id):
 def test_paths(video_id):
     """Debug endpoint to check file paths"""
     try:
-        video = db.get_video(video_id=video_id)
+        video = db.get_videos(video_id=video_id)[0]
         if not video:
             return jsonify({"error": "Video not found"}), 404
             
@@ -301,7 +301,7 @@ def test_paths(video_id):
 @app.route('/video-content/<video_id>')
 def video_content(video_id):
     try:
-        video = db.get_video(video_id=video_id)
+        video = db.get_videos(video_id=video_id)[0]
         if not video:
             return jsonify({
                 'transcript': {'content': ""},
@@ -479,7 +479,7 @@ def save_config():
 @app.route('/script/<video_id>')
 def view_script(video_id):
     try:
-        video = db.get_video(video_id=video_id)
+        video = db.get_videos(video_id=video_id)[0]
         
         if not video:
             logging.error(f"Video not found in database: {video_id}")

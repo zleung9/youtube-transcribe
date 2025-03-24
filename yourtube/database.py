@@ -117,15 +117,15 @@ class Database(ABC):
     def refresh_database(self):
         raise NotImplementedError
     
-    def get_video(self, **kwargs):
-        return  self._get_video(**kwargs)
+    def get_videos(self, **kwargs):
+        return  self._get_videos(**kwargs)
 
     
     def update_video(self, video: Video):
         """Update an existing video in the database without deleting/re-adding."""
         try:
             # Get existing video
-            existing_video = self.get_video(video_id=video.video_id)
+            existing_video = self.get_videos(video_id=video.video_id)[0]
             
             if existing_video:
                 # Instead of updating, delete the existing video and add the new one
@@ -163,7 +163,7 @@ class Database(ABC):
         raise NotImplementedError
     
     @abstractmethod
-    def _get_video(self, **kwargs):
+    def _get_videos(self, **kwargs):
         """Get a video from the database."""
         raise NotImplementedError
 
@@ -188,7 +188,7 @@ class SqliteDB(Database):
     def _delete_video(self, **kwargs):
         """Delete a video from the database."""
         try:
-            video = self.get_video(**kwargs)
+            video = self.get_videos(**kwargs)[0]
             if video:
                 self.session.delete(video) # remove from database
                 self.session.commit() 
@@ -207,18 +207,21 @@ class SqliteDB(Database):
             self.session.rollback()
             raise Exception(f"Error deleting video: {str(e)}")
 
-    def _get_video(self, **kwargs):
+    def _get_videos(self, **kwargs):
         '''If video_id exists in database, return video, other wise None
         '''
         try:
-            video = self.session.query(Video).filter_by(**kwargs).first()
+            video = self.session.query(Video).filter_by(**kwargs).all()
             return video
         except Exception as e:
             self.session.rollback()
             raise IndexError(f"Something went wrong when trying to get video: {e}")
             return None
 
+
 if __name__ == "__main__":
-    db = SqliteDB()
-    deleted = db.delete_video(video_id="HeHnTfkCcok")
-    print(f"Deleted: {deleted}")
+    db = SqliteDB(db_path=get_db_path())
+    # deleted = db.delete_video(video_id="HeHnTfkCcok")
+    videos = db.session.query(Video).filter(transcript = True).all()
+    for video in videos:
+        print(video.video_id)

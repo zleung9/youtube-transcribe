@@ -1,6 +1,6 @@
 import os
 import argparse
-from yourtube import Database, Transcriber
+from yourtube import Database, Transcriber, TextProcessor, Summarizer
 from yourtube.utils import extract_youtube_id, load_config, get_download_dir, get_db_path
 from yourtube.monitor import YoutubeMonitor, BilibiliMonitor
 from yourtube.reporter import Reporter
@@ -19,7 +19,8 @@ config =load_config() #check if config.json exists, if not create it from templa
 db = Database(db_path=DB_PATH)
 monitor = YoutubeMonitor(config=config)
 transcriber = Transcriber(config=config)
-
+text_processor = TextProcessor(config=config)
+summarizer = Summarizer(config=config)
 
 def initialize_monitors(config: Dict) -> Dict:
     """Initialize monitors for each platform"""

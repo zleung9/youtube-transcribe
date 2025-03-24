@@ -4,7 +4,8 @@ import whisper
 import litellm
 import ffmpeg
 import logging
-from yourtube import Video
+from queue import Queue
+from yourtube import Video, Database
 from yourtube.utils import get_device, get_download_dir, get_llm_info
 from yourtube.prompts import prompt_summarize, prompt_process_fulltext
 
@@ -77,24 +78,33 @@ def preprocess_audio(audio_path):
     except Exception as e:
         print(f"Error processing audio: {e}")
         return None
-        
-class Transcriber:
-    def __init__(self, video: Video|None=None, model_size=None, config=None):
-        self._config = config   
+
+
+class Agent:
+    def __init__(self, config: dict):
+        self._config = config
+        self._queue = Queue()
+        self._video = None
         self.working_dir = get_download_dir()
-        self.model_size = model_size
         self.device = None
-        self.model = None
         self._video_path = ""
         self._srt_path = ""
         self._txt_path = ""
+        self._processed_txt_path = ""
         self._md_path = ""
-        self._video_id = None
         self._language = "zh" # default language is Chinese
-        if video:
-            self.load_video(video)
-        if model_size:
-            self.load_model(model_size)
+
+    def run(self):
+        pass
+
+    def scan(self, database: Database):
+        pass
+    
+    def update(self):
+        """
+        Update the processed video to database.
+        """
+        pass
 
     @property
     def metadata(self):
@@ -104,23 +114,6 @@ class Transcriber:
             "fulltext": True if self._txt_path and os.path.exists(self._txt_path) else False,
             "language": self._language
         }
-
-    def load_model(self, model_size: str="base"):
-        """
-        Load the Whisper model with GPU acceleration if available.
-
-        Args:
-            model_size (str, optional): Name of the Whisper model to load. Defaults to "base".
-        """
-        # Try to use MPS/GPU first, fallback to CPU if there are issues
-        try:
-            self.device = get_device()
-            self.model = whisper.load_model(model_size).to(self.device)
-        except (NotImplementedError, RuntimeError):
-            print("GPU acceleration failed, falling back to CPU...")
-            self.device = "cpu"
-            self.model = whisper.load_model(model_size).to(self.device)
-    
 
     def load_video(self, video: Video):
         """
@@ -139,7 +132,38 @@ class Transcriber:
         self._md_path = self._video_path.replace(".mp4", f".{self._language}.md")
 
 
-    def transcribe(self, video: Video):
+class Transcriber(Agent):
+    def __init__(self, config=None):
+        super().__init__(config)
+        self.working_dir = get_download_dir()
+        self.device = None
+        self.model = None
+
+    def load_model(self, model_size: str="base"):
+        """
+        Load the Whisper model with GPU acceleration if available.
+
+        Args:
+            model_size (str, optional): Name of the Whisper model to load. Defaults to "base".
+        """
+        # Try to use MPS/GPU first, fallback to CPU if there are issues
+        try:
+            self.device = get_device()
+            self.model = whisper.load_model(model_size).to(self.device)
+        except (NotImplementedError, RuntimeError):
+            print("GPU acceleration failed, falling back to CPU...")
+            self.device = "cpu"
+            self.model = whisper.load_model(model_size).to(self.device)
+
+    def run(self):
+        """
+        Run the transcriber.
+        """
+        while not self._queue.empty():
+            video = self._queue.get()
+            self._transcribe(video)
+    
+    def _transcribe(self, video: Video):
         """
         Transcribe video audio to text and save as SRT file.
         Includes language detection and optimized transcription settings.
@@ -217,51 +241,53 @@ class Transcriber:
         except Exception as e:
             print(f"Error releasing model: {e}")
 
-    def extract_fulltext(self, video: Video):
+    def scan(self, database: Database):
+        """ Scan database for videos that has processed text file but no summary file.
+        Add them to the queue.
         """
-        Process SRT file to extract clean text content.
-        Removes timestamps and formatting, combining all text into a single file.
+        videos = database.get_videos(transcript=False)
+        video_ids = []
+        for video in videos:
+            video_ids.append(video.video_id)
+            self._queue.put(video)
+        return video_ids
 
-        Args:
-            video (Video): Video object containing file information
-
-        Returns:
-            int: 0 on success, 1 on failure
+    def update(self, database: Database):
         """
+        Update the transcriber with new video.
+        """
+        self._video.transcript = True
+        database.update_video(self._video)
+
+class TextProcessor(Agent):
+    def __init__(self, config: dict):
+        super().__init__(config)
+
+    def scan(self, database: Database):
+        """ Scan database for videos that has processed text file but no summary file.
+        Add them to the queue.
+        """
+        videos = database.get_videos(transcript=True, fulltext=False)
+        video_ids = []
+        for video in videos:
+            video_ids.append(video.video_id)
+            self._queue.put(video)
+        return video_ids
+
+    def update(self, database: Database):
+        """
+        Update the transcriber with new video.
+        """
+        self._video.fulltext = True
+        database.update_video(self._video)
+
+    def run(self, video: Video, verbose=False):
         self.load_video(video)
-        # Read the SRT file
-        try:
-            with open(self._srt_path, 'r', encoding='utf-8') as srt_file:
-                srt_text = srt_file.read()
-        except FileNotFoundError:
-            print(f"SRT file not found: {self._srt_path}")
-            self.transcribe(video)
-            with open(self._srt_path, 'r', encoding='utf-8') as srt_file:
-                srt_text = srt_file.read()
+        fulltext = self._extract_fulltext(video)
+        processed_fulltext = self._process_fulltext()
+        return processed_fulltext
 
-        # Split into blocks by double newline
-        blocks = srt_text.split('\n\n')
-        
-        # Extract text lines (skip blocks with 4 lines, take last line from others)
-        text_lines = []
-        for block in blocks:
-            lines = block.strip().split('\n')
-                
-            # Take the last line from valid blocks
-            if len(lines) >= 3:  # Valid blocks have at least 3 lines
-                text_lines.append(lines[-1].strip())
-        
-        # Join all text lines with a space
-        processed_text = ' '.join(line for line in text_lines if line)
-        
-        # Write processed text to new file
-        with open(self._txt_path, 'w', encoding='utf-8') as txt_file:
-            txt_file.write(processed_text)
-        
-        print(f"Converted srt to txt: {self._txt_path}")
-        return processed_text
-    
-    def process_fulltext(self, video: Video, chunk_size: int=2000, overlap: int=200):
+    def _process_fulltext(self, content: str, chunk_size: int=2000, overlap: int=200):
         """
         Process the fulltext of the video. The purpose is to reorganize the text into a more readable format. It does the following:
         1. Read the fulltext from the txt file and divide it into chunks of 1000 tokens/words each with an overlap.
@@ -277,9 +303,6 @@ class Transcriber:
         Returns:
             str: Processed content
         """
-        self.load_video(video)
-        with open(self._txt_path, 'r', encoding='utf-8') as file:
-            content = file.read()
         
         # Get LLM information from config
         llm_provider, llm_name, api_key, max_tokens, temperature = get_llm_info("process_fulltext")
@@ -357,10 +380,84 @@ class Transcriber:
         # Update the txt path to the processed file
         self._txt_path = processed_txt_path
         return processed_content
-    
+
+    def _extract_fulltext(self, video: Video):
+        """
+        Process SRT file to extract clean text content.
+        Removes timestamps and formatting, combining all text into a single file.
+
+        Args:
+            video (Video): Video object containing file information
+
+        Returns:
+            int: 0 on success, 1 on failure
+        """
+        # Read the SRT file
+        try:
+            with open(self._srt_path, 'r', encoding='utf-8') as srt_file:
+                srt_text = srt_file.read()
+        except FileNotFoundError:
+            print(f"SRT file not found: {self._srt_path}")
+            self.transcribe(video)
+            with open(self._srt_path, 'r', encoding='utf-8') as srt_file:
+                srt_text = srt_file.read()
+
+        # Split into blocks by double newline
+        blocks = srt_text.split('\n\n')
+        
+        # Extract text lines (skip blocks with 4 lines, take last line from others)
+        text_lines = []
+        for block in blocks:
+            lines = block.strip().split('\n')
+                
+            # Take the last line from valid blocks
+            if len(lines) >= 3:  # Valid blocks have at least 3 lines
+                text_lines.append(lines[-1].strip())
+        
+        # Join all text lines with a space
+        processed_text = ' '.join(line for line in text_lines if line)
+        
+        # Write processed text to new file
+        with open(self._txt_path, 'w', encoding='utf-8') as txt_file:
+            txt_file.write(processed_text)
+        
+        print(f"Converted srt to txt: {self._txt_path}")
+        return processed_text
 
 
-    def summarize(self, video: Video, verbose=False):
+class Summarizer(Agent):
+    def __init__(self, config: dict):
+        super().__init__(config)
+
+    def scan(self, database: Database):
+        """ Scan database for videos that has processed text file but no summary file.
+        Add them to the queue.
+        """
+        videos = database.get_videos(fulltext=True, summary=False)
+        video_ids = []
+        for video in videos:
+            video_ids.append(video.video_id)
+            self._queue.put(video)
+        return video_ids
+
+    def update(self, database: Database):
+        """
+        Update the transcriber with new video.
+        """
+        self._video.summary = True
+        database.update_video(self._video)
+
+    def run(self):
+        """
+        Run the summarizer.
+        """
+        while not self._queue.empty():
+            video = self._queue.get()
+            self._summarize(video)
+            
+        
+
+    def _summarize(self, video: Video, verbose=False):
         """
         Generate a summary of the transcribed content using LLM.
 
@@ -377,12 +474,12 @@ class Transcriber:
             - Saves summary in markdown format (.md)
         """
         # Use the processed text file if it exists, otherwise use the original text file
+        self.load_video(video)
         txt_path = self._processed_txt_path if os.path.exists(self._processed_txt_path) else self._txt_path
         
-        self.load_video(video)
         llm_provider, llm_name, api_key, max_tokens, temperature = get_llm_info("summarize")
 
-        # Read SRT content from the file
+        # Read content from the file
         try:
             with open(txt_path, 'r', encoding='utf-8') as file:
                 content = file.read()
@@ -414,11 +511,14 @@ class Transcriber:
             print(summary_text)
         
         return summary_text
-
+    
+    
 if __name__ == "__main__":
     from yourtube import Database
-    from yourtube.utils import get_db_path
+    from yourtube.utils import get_db_path, load_config
     db = Database(db_path=get_db_path())
     transcriber = Transcriber()
-    video = db.get_video(video_id="yarle_bZDCs")
-    transcriber.process_fulltext(video)
+    summarizer = Summarizer(config=load_config())
+    videos = summarizer.scan(db)
+    for video in videos:
+        print(video.video_id)
