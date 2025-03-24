@@ -8,7 +8,7 @@ dependencies = [
     "google-api-python-client>=2.158.0",
     "openai-whisper>=20240930",
     "torch>=2.5.1",
-    "yt-dlp>=2024.12.23",
+    "yt-dlp==2025.3.21",
     "openai>=1.0.0",
     "pytest>=8.3.4",
     "litellm>=1.58.2",
