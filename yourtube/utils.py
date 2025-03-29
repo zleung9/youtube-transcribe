@@ -143,8 +143,28 @@ def get_download_dir(path="downloads/"):
     return download_dir
 
 
-def get_db_path(path="videos.db"):
+def get_db_path(path="videos.db", test=False):
+    """
+    Get the path to the database file.
+    If test=True, creates a copy of videos.db named test_videos.db.
+    
+    Args:
+        path (str): Name of the database file
+        test (bool): Whether to use a test database copy
+    
+    Returns:
+        str: Path to the database file
+    """
+
     db_path = os.path.join(get_download_dir(), path)
+    
+    if test:
+        import shutil
+        test_db_path = os.path.join(get_download_dir(), "test_" + path)
+        if not os.path.exists(test_db_path) and os.path.exists(db_path):
+            shutil.copy2(db_path, test_db_path)
+        return test_db_path
+        
     return db_path
 
 
