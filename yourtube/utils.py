@@ -171,25 +171,30 @@ def get_db_path(path="videos.db", test=False):
 def download_youtube_video(
         path=get_download_dir(),  # Default download path
         video_id=None, # Video ID
-        format="worst", # The video quality to download
         video=False, # weather download the actual video file
         json=True,
         subtitles=True,
         auto_subtitles=True,
-        langs=["en", "zh"]
+        langs=["en", "zh"],
     ):
     
     ydl_opts = {
             'quiet': False,
             'extract_flat': True,
             'outtmpl': os.path.join(path, f'{video_id}.%(ext)s'),
-            'format': format,
+            'format': 'bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            'merge_output_format': 'mp4',
+            'postprocessors': [{
+                    'key': 'FFmpegVideoConvertor',
+                    'preferedformat': 'mp4'  # Force conversion to MP4
+            }],
             'writeinfojson': json,
             'writesubtitles': subtitles,
             'writeautomaticsub': auto_subtitles,  # Enable auto-generated subtitles if manual ones aren't available'
             'subtitlesformat': 'srt/vtt',
             'subtitleslangs': langs,
-            'skip_download': not video
+            'skip_download': not video,
+            'no_warnings': True
         }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -198,10 +203,10 @@ def download_youtube_video(
                 url=f"https://www.youtube.com/watch?v={video_id}", 
                 download=True
             )
-        except yt_dlp.utils.DownloadError as e:
-            return None
-    
-    return info
+            return info
+        except Exception as e:
+            print(f"Error downloading {video_id}: {str(e)}")
+            raise
 
 def clean_srt_file(input_file, output_file):
     """

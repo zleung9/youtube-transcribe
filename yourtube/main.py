@@ -138,8 +138,8 @@ def process_video_pipeline(
     if not video_id:
         video_id = extract_youtube_id(url)
     
-    video = database.get_video(video_id=video_id)
-    if video and not force:
+    videos = database.get_videos(video_id=video_id)
+    if videos and not force:
         print(f"Video {video_id} already processed")
         return 0
 
@@ -151,7 +151,7 @@ def process_video_pipeline(
         print(f"Transcribing video")
         if not transcriber.model:
             transcriber.load_model(model_size=model_size)
-        _ = transcriber.transcribe(video)
+        _ = transcriber._transcribe(video)
         if is_last:
             transcriber.release_model()
     

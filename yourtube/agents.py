@@ -6,16 +6,21 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from uuid import uuid4
 import asyncio
+from queue import Queue
 # Third-party imports
 import ffmpeg
 import whisper
 import litellm
 from sqlalchemy import Column, String, DateTime, Boolean, UUID, create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
+import yt_dlp
 
 # Local imports
 from yourtube.utils import (
     get_download_dir,
+    convert_vtt_to_srt,
+    download_youtube_video,
+    get_language,
     get_db_path,
     get_device,
     get_llm_info,
@@ -271,34 +276,6 @@ def create_srt(segments):
     return "\n".join(srt_content)
 
 
-def preprocess_audio(audio_path):
-    """
-    Pre-process audio file for better transcription quality.
-    Converts audio to 16kHz mono WAV format.
-
-    Args:
-        audio_path (str): Path to the input audio/video file
-
-    Returns:
-        str: Path to the processed audio file, or None if processing fails
-    """
-    try:
-        # Convert to 16kHz mono WAV
-        output_path = audio_path.replace('.mp4', '.wav')
-        ffmpeg.input(audio_path).output(
-            output_path, 
-            ar='16000',    # Sample rate
-            ac=1,          # Mono audio
-            acodec='pcm_s16le'
-        ).run(overwrite_output=True, quiet=True)
-        print(f"Audio preprocessed to: {output_path}")
-        return output_path
-    except Exception as e:
-        print(f"Error processing audio: {e}")
-        return None
-
-
-
 class AsyncAgent(ABC):
     def __init__(self, config: dict):
         self._config = config
@@ -363,13 +340,139 @@ class AsyncAgent(ABC):
         async with self._db_lock:
             await db.update_video(video)
 
-
-class AsyncTranscriber(AsyncAgent):
+class AsyncMonitor(AsyncAgent):
+    """Base class for platform-specific monitors"""
     def __init__(self, config: dict):
         super().__init__(config)
-        self.name = "transcriber"
-        self.model = None
+        self.name = "monitor"
+        self.queue = Queue()  # Change back to regular Queue
     
+    async def process_batch(self):
+        """Process a batch of videos by checking updates and downloading"""
+        try:
+            # Get channel handles from config
+            channels = self._config.get('channels', [])
+            max_results = self._config.get('max_results', 1)
+            
+            # Check updates for all channels (synchronously)
+            video_ids_lists = []
+            for channel in channels:
+                video_ids = self.check_updates(channel, max_results=max_results)
+                video_ids_lists.append(video_ids)
+            
+            # Add all video IDs to queue
+            for video_ids in video_ids_lists:
+                for video_id in video_ids:
+                    self.queue.put(video_id)
+            
+            # Download videos (synchronously)
+            videos = []
+            while not self.queue.empty():
+                video_id = self.queue.get()
+                video = self.download(video_id)
+                if video:  # Only add if download was successful
+                    videos.append(video)
+                self.queue.task_done()
+            
+            # Update database with new videos
+            if videos:
+                async with SqliteDB(db_path=get_db_path(test=True)) as db:
+                    for video in videos:
+                        await db.add_video(video)
+            
+        except Exception as e:
+            logger.error(f"Error in monitor batch processing: {e}")
+
+    async def _process_single_video(self, video_id, format='worst'):
+        return await self.download(video_id, format)
+    
+    @abstractmethod
+    def check_updates(self, handle: str, max_results: int = 10):
+        """Get latest videos from a single channel."""
+        pass
+    
+    @abstractmethod
+    def download(self, video_id: str):
+        """Download the video from the platform"""
+        pass
+
+class AsyncYoutubeMonitor(AsyncMonitor):
+    def __init__(self, config: dict):
+        super().__init__(config)
+        self.ydl_opts = {
+            'quiet': True,
+            'extract_flat': True,
+            'force_generic_extractor': False
+        }
+    
+    async def check_updates(self, channel_handle, max_results=1):
+        """Synchronous version of YouTube channel checking"""
+        url = f"https://www.youtube.com/@{channel_handle}"
+        ydl_opts = {
+            'quiet': True,
+            'extract_flat': True,
+            'playlistend': max_results
+        }
+
+        video_ids = []
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+        
+        video_entries = info['entries']
+        if not video_entries[0].get("url", None):
+            video_entries = video_entries[0]['entries']
+
+        for video in video_entries:
+            video_ids.append(video['id'])
+
+        return video_ids
+
+    async def _process_single_video(self, video_id):
+        return await self.download(video_id)
+
+    async def download(self, video_id):
+        """Synchronous version of video downloading"""
+        try:
+            info = download_youtube_video(path=self.working_dir, video_id=video_id, video=False)
+            video_title = info.get('title', 'Untitled')
+            language = get_language(info, config=self._config)
+            
+            srt_path = os.path.join(self.working_dir, f'{video_id}.{language}.srt')
+            if not os.path.exists(srt_path):
+                srt_path = None
+                vtt_path = os.path.join(self.working_dir, f'{video_id}.{language}.vtt')
+                try:
+                    srt_path = convert_vtt_to_srt(vtt_path)
+                    print(f"vtt converted to srt: {srt_path}")
+                except FileNotFoundError:
+                    srt_path = None
+                    vtt_path = None
+                    _ = download_youtube_video(path=self.working_dir, video_id=video_id, video=True)
+                    print("No subtitles for this video, transcribe it please")
+
+            video = Video.from_dict({
+                "video_id": video_id,
+                'title': video_title,
+                'channel': info.get('channel', ""),
+                'channel_id': info.get('channel_id', ""),
+                'language': language,
+                'upload_date': info.get('upload_date'),
+                'transcript': True if srt_path else False
+            })
+
+            return video
+        except Exception as e:
+            logger.error(f"[{self.name}] {video_id}: Error downloading video: {e}")
+            return None
+
+
+class AsyncTranscriber(AsyncAgent):
+    def __init__(self, config: dict, monitor: AsyncMonitor):
+        super().__init__(config)
+        self.name = "Transcriber"
+        self.model = None
+        self.monitor = monitor # utilize the monitor in the workflowmanager        
+
 
     async def process_batch(self):
         """Process videos that need transcription"""
@@ -382,19 +485,23 @@ class AsyncTranscriber(AsyncAgent):
                 await self._load_model()
             
             for video in videos:
+                # download video if mp4 file does not exist
+                if not os.path.exists(os.path.join(self.working_dir, f'{video.video_id}.mp4')):
+                    await self.monitor.download(video.video_id);
                 await self._process_single_video(video, db)
             # Release model if no more videos to process
             self._release_model()
     
+
     async def _process_single_video(self, video, db):
         try:
-            print(f"Transcribing video {video.video_id}")
+            print(f"[{self.name}] {video.video_id}: Transcribing video")
             await self._transcribe(video)
             video.transcript = True
             await self.update_video_safe(db, video)  # Use safe update
-            print(f"Finished transcribing video {video.video_id}")
+            print(f"[{self.name}] {video.video_id}: Finished transcribing video")
         except Exception as e:
-            logger.error(f"Failed to transcribe video {video.video_id}: {e}")
+            logger.error(f"[{self.name}] {video.video_id}: Failed to transcribe video: {e[:20]}")
 
 
     async def _load_model(self, model_size: str="base"):
@@ -409,7 +516,7 @@ class AsyncTranscriber(AsyncAgent):
             self.device = get_device()
             self.model = whisper.load_model(model_size).to(self.device)
         except (NotImplementedError, RuntimeError):
-            print("GPU acceleration failed, falling back to CPU...")
+            print(f"[{self.name}] Whisper: GPU acceleration failed, falling back to CPU...")
             self.device = "cpu"
             self.model = whisper.load_model(model_size).to(self.device)
 
@@ -417,66 +524,61 @@ class AsyncTranscriber(AsyncAgent):
     async def _transcribe(self, video: Video):
         """
         Transcribe video audio to text and save as SRT file.
-        Includes language detection and optimized transcription settings.
-
-        Args:
-            video (Video): Video object to transcribe
-
-        Returns:
-            int: 0 on success, 1 on failure
         """
         assert self.model, "Model not loaded."
         
         await self.load_video(video)
-        print("Detecting language...", end="\r", flush=True)
+        print(f"[{self.name}] {video.video_id}: Detecting language...", end="\r", flush=True)
         
-        # If audio processing fails, return an error
-        processed_audio_path = preprocess_audio(self._video_path)
-        if processed_audio_path is None:
-            print("Audio preprocessing failed, using video directly.")
-            processed_audio_path = self._video_path
-        
-        # Use the model initialized in __init__
-        model = self.model
-
-        # First detect the language
-        audio = whisper.load_audio(processed_audio_path)
-        audio = whisper.pad_or_trim(audio)
-        mel = whisper.log_mel_spectrogram(audio).to(model.device)
-        _, probs = model.detect_language(mel)
-        language = max(probs, key=probs.get)
-        print(f"Detected language: {language}")
-        print("Transcribing...", end="\r", flush=True)
         try:
-            result = model.transcribe(
-                processed_audio_path,
+            # Load audio directly from video file using whisper
+            audio = whisper.load_audio(self._video_path)
+            audio = whisper.pad_or_trim(audio)
+            mel = whisper.log_mel_spectrogram(audio).to(self.model.device)
+            
+            # Detect language
+            _, probs = self.model.detect_language(mel)
+            language = max(probs, key=probs.get)
+            print(f"[{self.name}] {video.video_id}: Detected language: {language}")
+            
+            # Transcribe
+            print(f"[{self.name}] {video.video_id}: Transcribing...", end="\r", flush=True)
+            result = self.model.transcribe(
+                self._video_path,  # Use video path directly
                 task="transcribe",
                 language=language,
                 initial_prompt="以下是一段中文视频内容的转录。请使用简体中文准确转录，保持原有的语气和表达方式。" if language == "zh" else None,
-                fp16=self.device != "cpu", # Use half-precision floating point for faster processing
-                beam_size=1, # Increase beam search width (default is 1)
-                best_of=1, # Generate multiple samples and select best (default is 1)
-                temperature=0.0, # Lower temperature for more deterministic output
-                condition_on_previous_text=True, # Use previous text as condition
-                compression_ratio_threshold=2, # Prevent empty segments
-                no_speech_threshold=0.6, # Prevent empty segments
-                word_timestamps=False # Generate word-level timestamps
+                fp16=self.device != "cpu",
+                beam_size=1,
+                best_of=1,
+                temperature=0.0,
+                condition_on_previous_text=True,
+                compression_ratio_threshold=2,
+                no_speech_threshold=0.6,
+                word_timestamps=False
             )
+            
+            # Create SRT content
             srt_content = create_srt(result['segments'])
+            
+            # Write to file
             with open(self._srt_path, "w", encoding="utf-8") as srt_file:
                 srt_file.write(srt_content)
-            print(f"Transcription saved to: {self._srt_path}")
+            print(f"[{self.name}] {video.video_id}: Transcription saved to: {self._srt_path}")
             
-            # delete the video file after transcribing
-            for suffix in ['mp4', 'wav']:
-                try: 
-                    os.remove(os.path.join(self.working_dir, f'{video.video_id}.{suffix}'))
-                except FileNotFoundError:
-                    continue
-        
+            # Clean up video file
+            try:
+                os.remove(self._video_path)
+            except (OSError, FileNotFoundError) as e:
+                print(f"[{self.name}] {video.video_id}: Could not delete video file: {e}")
+                
+        except RuntimeError as e:
+            print(f"[{self.name}] {video.video_id}: Runtime error during transcription: {str(e)}")
+            raise
         except Exception as e:
-            self._srt_path = ""
-            print(f"Error transcribing video: {e}")
+            print(f"[{self.name}] {video.video_id}: Error transcribing video: {str(e)}")
+            raise
+
 
     def _release_model(self):
         """
@@ -487,13 +589,12 @@ class AsyncTranscriber(AsyncAgent):
             self.model = None
             print("Model memory released")
         except Exception as e:
-            print(f"Error releasing model: {e}")
-
+            print(f"[{self.name}] Error releasing model: {e}")
 
 class AsyncTextProcessor(AsyncAgent):
     def __init__(self, config: dict):
         super().__init__(config)
-        self.name = "text_processor"    
+        self.name = "Text Processor"    
 
     async def process_batch(self):
         """Process videos that need summarization"""
@@ -665,7 +766,7 @@ class AsyncTextProcessor(AsyncAgent):
 class AsyncSummarizer(AsyncAgent):
     def __init__(self, config: dict):
         super().__init__(config)
-        self.name = "summarizer"
+        self.name = "Summarizer"
 
     async def process_batch(self):
         """Process videos that need summarization"""
@@ -751,14 +852,19 @@ class WorkflowManager:
     def __init__(self, config: dict):
         self.config = config
         self.agents = []
+        self.monitor = AsyncYoutubeMonitor(self.config)
+        self.transcriber = AsyncTranscriber(self.config, self.monitor)
+        self.text_processor = AsyncTextProcessor(self.config)
+        self.summarizer = AsyncSummarizer(self.config)
         self._setup_agents()
     
     def _setup_agents(self):
         """Initialize all agents"""
         self.agents.extend([
-            AsyncTranscriber(self.config),
-            AsyncTextProcessor(self.config),
-            AsyncSummarizer(self.config)
+            self.monitor,
+            self.transcriber,
+            self.text_processor,
+            self.summarizer
         ])
         
         # Easy to add more agents here

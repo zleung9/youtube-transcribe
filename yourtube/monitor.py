@@ -140,7 +140,7 @@ class YoutubeMonitor(Monitor):
             except FileNotFoundError:
                 srt_path = None
                 vtt_path = None
-                _ = download_youtube_video(path=self._default_path, video_id=video_id, format=format, video=True)
+                _ = download_youtube_video(path=self._default_path, video_id=video_id, video=True)
                 print("No subtitles for this video, transcribe it please")
 
 
