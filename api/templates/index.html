@@ -8,7 +8,7 @@
     <link href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/github.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
     <link href="https://cdn.jsdelivr.net/gh/sindresorhus/github-markdown-css@4.0.0/github-markdown.min.css" rel="stylesheet">
-    <script src="{{ url_for('static', filename='script.js') }}" defer></script>
+    <script src="/static/script.js" defer></script>
     
     <style>
         /* Video list scrolling */
@@ -179,19 +179,8 @@
             <!-- Left Section: Video Library -->
             <div class="flex-1">
                 <div class="video-list-container bg-gray-900">
-                    <!-- Flash Messages -->
-                    {% with messages = get_flashed_messages(with_categories=true) %}
-                        {% if messages %}
-                            {% for category, message in messages %}
-                                <div class="mb-4 p-4 rounded 
-                                    {% if category == 'error' %}bg-red-100 text-red-700 border border-red-400
-                                    {% elif category == 'warning' %}bg-yellow-100 text-yellow-700 border border-yellow-400
-                                    {% else %}bg-green-100 text-green-700 border border-green-400{% endif %}">
-                                    {{ message }}
-                                </div>
-                            {% endfor %}
-                        {% endif %}
-                    {% endwith %}
+                    <!-- Flash Messages - Not used in FastAPI, but keeping the structure for compatibility -->
+                    <div id="flash-messages"></div>
                     
                     <!-- Sort Controls -->
                     <div class="flex justify-end bg-gray-900 mb-4">
@@ -248,101 +237,16 @@
                     </div>
                 </div>
             </div>
-
-            <!-- Right Section: Chat Box -->
-            <div class="flex-1">
-                <div class="bg-white rounded-lg shadow chat-container">
-                    <!-- Tabs Header -->
-                    <div class="flex border-b">
-                        <button onclick="switchTab('summary')" 
-                                class="tab-button" 
-                                data-tab="summary"
-                                disabled>
-                            Summary
-                        </button>
-                        <button onclick="switchTab('script')" 
-                                class="tab-button" 
-                                data-tab="script"
-                                disabled>
-                            Script
-                        </button>
-                        <button onclick="switchTab('transcript')" 
-                                class="tab-button" 
-                                data-tab="transcript"
-                                disabled>
-                            Transcript
-                        </button>
-                        <button onclick="switchTab('chat')" 
-                                class="tab-button" 
-                                data-tab="chat"
-                                disabled>
-                            Chat
-                        </button>
-                        <button onclick="switchTab('notes')" 
-                                class="tab-button" 
-                                data-tab="notes"
-                                disabled>
-                            Notes
-                        </button>
-                    </div>
-
-                    <!-- Chat Tab -->
-                    <div id="chat-tab" class="tab-content">
-                        <div class="message-container" id="chat-messages">
-                            <!-- Messages will be populated here -->
-                        </div>
-                    </div>
-
-                    <!-- Summary tab -->
-                    <div id="summary-tab" class="tab-content active bg-gray-200 p-2">
-                        <div id="summary-content" class="markdown-body">
-                            <!-- Summary content will be loaded here -->
-                        </div>
-                    </div>
-
-                    <!-- Script tab -->
-                    <div id="script-tab" class="tab-content bg-gray-200 p-2">
-                        <div id="script-content" class="markdown-body">
-                            <!-- Script content will be loaded here -->
-                        </div>
-                    </div>
-
-                    <!-- Transcript tab -->
-                    <div id="transcript-tab" class="tab-content bg-gray-200 p-2">
-                        <div id="transcript-content" class="markdown-body">
-                            <!-- Transcript content will be loaded here -->
-                        </div>
-                    </div>
-
-                    <!-- Notes tab -->
-                    <div id="notes-tab" class="tab-content bg-gray-200 p-2">
-                        <div class="flex flex-col h-full">
-                            <textarea id="notes-editor" 
-                                    class="w-full h-full p-4 border rounded resize-none focus:outline-none focus:border-blue-500"
-                                    placeholder="Enter your notes here..."></textarea>
-                            <div class="mt-4 flex justify-end">
-                                <button onclick="saveNotes()" 
-                                        class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
-                                    Save Notes
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Input Container (always visible) -->
-                    <div class="input-container">
-                        <div class="flex gap-2">
-                            <input type="text" 
-                                   id="chat-input"
-                                   placeholder="Chat function coming soon..." 
-                                   class="flex-1 rounded border px-3 py-2 focus:outline-none focus:border-blue-500"
-                                   disabled>
-                            <button onclick="sendMessage()" 
-                                    class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-                                    disabled>
-                                Send
-                            </button>
-                        </div>
+            
+            <!-- Right Section: Video Content -->
+            <div class="flex-1 bg-gray-900">
+                <div id="video-content" class="bg-gray-200 rounded-lg shadow p-4 h-full">
+                    <div class="text-center text-gray-500 mt-20">
+                        <svg class="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <p class="text-xl">Select a video to view its content</p>
                     </div>
                 </div>
             </div>
@@ -351,27 +255,77 @@
 
     <!-- Config Modal -->
     <div id="config-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-        <div class="bg-white rounded-lg shadow-lg w-3/4 h-3/4 flex flex-col">
-            <div class="p-4 border-b flex justify-between items-center">
-                <h2 class="text-xl font-semibold">Edit Configuration</h2>
-                <button id="close-config-modal" class="text-gray-500 hover:text-gray-700">
+        <div class="bg-white rounded-lg p-6 w-3/4 max-h-[80vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold">Configuration</h2>
+                <button onclick="closeConfigModal()" class="text-gray-500 hover:text-gray-700">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                 </button>
             </div>
-            <div class="flex-1 p-4 overflow-hidden">
-                <textarea id="config-editor" 
-                          class="w-full h-full p-4 border rounded font-mono text-sm resize-none focus:outline-none focus:border-blue-500"
-                          spellcheck="false"></textarea>
+            <div class="mb-4">
+                <textarea id="config-editor" class="w-full h-64 p-2 border rounded font-mono text-sm"></textarea>
             </div>
-            <div class="p-4 border-t flex justify-end">
-                <button id="save-config-button" 
-                        class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
-                    Save Configuration
-                </button>
+            <div class="flex justify-end gap-2">
+                <button onclick="closeConfigModal()" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Cancel</button>
+                <button onclick="saveConfig()" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Save</button>
             </div>
         </div>
     </div>
+
+    <!-- Chat Window -->
+    <div id="chat-window" class="chat-window">
+        <div class="chat-header p-4 border-b flex justify-between items-center">
+            <h2 class="text-xl font-bold">Chat with Video</h2>
+            <button onclick="toggleChat()" class="text-gray-500 hover:text-gray-700">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <div class="chat-container">
+            <div id="chat-messages" class="message-container"></div>
+            <div class="chat-input">
+                <div class="flex gap-2">
+                    <input type="text" id="chat-input" class="flex-1 p-2 border rounded" placeholder="Type your message...">
+                    <button onclick="sendChatMessage()" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Function to show flash messages (FastAPI compatible)
+        function showFlashMessage(message, category) {
+            const flashContainer = document.getElementById('flash-messages');
+            const messageDiv = document.createElement('div');
+            
+            let bgColor, textColor, borderColor;
+            if (category === 'error') {
+                bgColor = 'bg-red-100';
+                textColor = 'text-red-700';
+                borderColor = 'border-red-400';
+            } else if (category === 'warning') {
+                bgColor = 'bg-yellow-100';
+                textColor = 'text-yellow-700';
+                borderColor = 'border-yellow-400';
+            } else {
+                bgColor = 'bg-green-100';
+                textColor = 'text-green-700';
+                borderColor = 'border-green-400';
+            }
+            
+            messageDiv.className = `mb-4 p-4 rounded ${bgColor} ${textColor} border ${borderColor}`;
+            messageDiv.textContent = message;
+            
+            flashContainer.appendChild(messageDiv);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                messageDiv.remove();
+            }, 5000);
+        }
+    </script>
 </body>
 </html>

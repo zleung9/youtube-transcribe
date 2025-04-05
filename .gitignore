@@ -18,3 +18,4 @@ videos.db*
 .DS_Store
 .continuerules
 *.log
+*cookie*

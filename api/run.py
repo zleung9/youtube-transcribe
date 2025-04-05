@@ -4,8 +4,13 @@ import logging
 import json
 import glob
 from logging.handlers import RotatingFileHandler
-from flask import Flask, render_template, redirect, url_for, flash, request, jsonify, after_this_request
-from flask_cors import CORS 
+from fastapi import FastAPI, Request, Response, HTTPException, Depends, Form, Query, Path
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import Optional, List, Dict, Any
 from yourtube import Database, Video, Transcriber
 from yourtube.utils import get_download_dir, get_db_path, get_config_path, load_config, extract_youtube_id
 from yourtube.monitor import YoutubeMonitor
@@ -14,54 +19,153 @@ from yourtube.async_worker import video_queue
 # Add the project root to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# global variables setup: dadtabase, monitor, transcriber, config, video_queue
+# global variables setup: database, monitor, transcriber, config, video_queue
 DOWNLOAD_DIR = get_download_dir()
 DB_PATH = get_db_path()
 print(f"Download directory: {DOWNLOAD_DIR}")
 print(f"Database path: {DB_PATH}")
 
-config =load_config() #check if config.json exists, if not create it from template
+config = load_config() #check if config.json exists, if not create it from template
 db = Database(db_path=DB_PATH)
 monitor = YoutubeMonitor(config=config)
 transcriber = Transcriber(config=config)
 video_queue.start_worker(process_video_pipeline) # Start the video processing worker
 
-# Flask app setup
-app = Flask(__name__)
+# FastAPI app setup
+app = FastAPI(title="YourTube")
+
 # Configure logging
-if not app.debug:
-    # Create logs directory if it doesn't exist
-    if not os.path.exists('logs'):
-        os.makedirs('logs')
-    
-    # Set up file handler
-    file_handler = RotatingFileHandler('logs/api.log', maxBytes=10240, backupCount=10)
-    file_handler.setFormatter(logging.Formatter(
-        '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
-    ))
-    file_handler.setLevel(logging.INFO)
-    app.logger.addHandler(file_handler)
-    
-    # Set up console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    app.logger.addHandler(console_handler)
-    
-    app.logger.setLevel(logging.INFO)
-    app.logger.info('API startup')
+if not os.path.exists('logs'):
+    os.makedirs('logs')
 
-CORS(app, resources={
-    r"/*": {
-        "origins": ["*"],  # Allow all origins for testing
-        "methods": ["GET", "POST", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type"]
-    }
-})
-app.secret_key = os.urandom(24)
+# Set up file handler
+file_handler = RotatingFileHandler('logs/api.log', maxBytes=10240, backupCount=10)
+file_handler.setFormatter(logging.Formatter(
+    '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+))
+file_handler.setLevel(logging.INFO)
 
-# Completely disable Werkzeug logging
-log = logging.getLogger('werkzeug')
-log.setLevel(logging.ERROR)  # Only show ERROR and above, suppressing INFO
+# Set up console handler
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+
+# Configure root logger
+logger = logging.getLogger()
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
+logger.setLevel(logging.INFO)
+logger.info('API startup')
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for testing
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers
+)
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="api/static"), name="static")
+
+# Templates
+templates = Jinja2Templates(directory="api/templates")
+
+# Pydantic models for request/response
+class VideoResponse(BaseModel):
+    id: str
+    video_id: str
+    title: str
+    channel: str
+    channel_id: Optional[str] = None
+    upload_date: str
+    process_date: Optional[str] = None
+    language: Optional[str] = None
+    transcript: Optional[bool] = False
+    fulltext: Optional[bool] = False
+    summary: Optional[bool] = False
+    status: Optional[str] = None
+    
+    @classmethod
+    def from_video(cls, video):
+        """Create a VideoResponse from a Video object"""
+        video_dict = video.to_dict()
+        return cls(
+            id=video_dict['id'],
+            video_id=video_dict['video_id'],
+            title=video_dict['title'],
+            channel=video_dict['channel'],
+            channel_id=video_dict['channel_id'],
+            upload_date=video_dict['upload_date'] or '',
+            process_date=video_dict['process_date'],
+            language=video_dict['language'],
+            transcript=video_dict['transcript'],
+            fulltext=video_dict['fulltext'],
+            summary=video_dict['summary'],
+            status=None  # Status is not part of the Video model
+        )
+
+class ProcessVideoResponse(BaseModel):
+    success: bool
+    status: str
+    video_id: str
+    title: str
+    channel: str
+    upload_date: str
+    
+    @classmethod
+    def from_dict(cls, data):
+        """Create a ProcessVideoResponse from a dictionary"""
+        return cls(
+            success=data.get('success', True),
+            status=data.get('status', 'queued'),
+            video_id=data.get('video_id', ''),
+            title=data.get('title', ''),
+            channel=data.get('channel', ''),
+            upload_date=data.get('upload_date', '')
+        )
+
+class VideoStatusResponse(BaseModel):
+    status: str
+    
+    @classmethod
+    def from_status(cls, status):
+        """Create a VideoStatusResponse from a status string"""
+        return cls(status=status or 'unknown')
+
+class DeleteVideoResponse(BaseModel):
+    success: bool
+    
+    @classmethod
+    def from_success(cls, success):
+        """Create a DeleteVideoResponse from a success boolean"""
+        return cls(success=success)
+
+class ProcessVideoRequest(BaseModel):
+    url: str
+    force: bool = True
+    transcribe: bool = True
+    process: bool = True
+    summarize: bool = True
+
+class NotesRequest(BaseModel):
+    notes: str
+
+class ContentSection(BaseModel):
+    content: str = ""
+    error: str = ""
+
+class VideoContentResponse(BaseModel):
+    transcript: ContentSection
+    summary: ContentSection
+    
+    @classmethod
+    def from_content(cls, transcript_text: str = "", summary_text: str = "", transcript_error: str = "", summary_error: str = ""):
+        """Create a VideoContentResponse from transcript and summary content"""
+        return cls(
+            transcript=ContentSection(content=transcript_text, error=transcript_error),
+            summary=ContentSection(content=summary_text, error=summary_error)
+        )
 
 def get_file_path(video_id, file_type, language=None):
     """Get file path based on video ID and type."""
@@ -85,10 +189,6 @@ def get_file_path(video_id, file_type, language=None):
     return path
 
 def scan_downloads_folder(downloads_path):
-    
-    global db
-    global monitor
-
     """Scan the downloads folder for video files and update the database."""
     stats = {
         'new_videos': 0,
@@ -127,35 +227,26 @@ def scan_downloads_folder(downloads_path):
     
     return stats
 
-@app.route('/')
-def index():
-    sort_by = request.args.get('sort', 'process_date')  # Default to processed_date
-    
-    if sort_by == 'upload_date':
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request, sort: str = Query("process_date", description="Sort videos by process_date or upload_date")):
+    if sort == 'upload_date':
         videos = db.session.query(Video).order_by(Video.upload_date.desc()).all()
     else:  # processed_date
         videos = db.session.query(Video).order_by(Video.process_date.desc()).all()
     
-    if request.headers.get('HX-Request'):  # If it's an AJAX request
-        return render_template('video_list.html', videos=videos)
-    return render_template('index.html', videos=videos)
+    return templates.TemplateResponse("index.html", {"request": request, "videos": videos})
 
-
-#handle AJAX sorting requests
-@app.route('/videos')
-def get_videos():
-    sort_by = request.args.get('sort', 'process_date')
-    
-    if sort_by == 'upload_date':
+@app.get("/videos", response_class=HTMLResponse)
+async def get_videos(request: Request, sort: str = Query("process_date", description="Sort videos by process_date or upload_date")):
+    if sort == 'upload_date':
         videos = db.session.query(Video).order_by(Video.upload_date.desc()).all()
     else:
         videos = db.session.query(Video).order_by(Video.process_date.desc()).all()
         
-    return render_template('index.html', videos=videos)
+    return templates.TemplateResponse("index.html", {"request": request, "videos": videos})
 
-
-@app.route('/refresh-library')
-def refresh_library():
+@app.get("/refresh-library", response_class=RedirectResponse)
+async def refresh_library():
     downloads_path = DOWNLOAD_DIR
     
     try:
@@ -168,209 +259,206 @@ def refresh_library():
         if stats.get('errors'):
             success_msg += f"\nWarnings: {len(stats['errors'])} errors occurred."
             for error in stats['errors']:
-                flash(error, "warning")
+                # In FastAPI, we can't use flash messages directly, so we'll use a different approach
+                # For now, we'll just log the errors
+                logger.warning(error)
                 
-        flash(success_msg, "success")
+        logger.info(success_msg)
         
     except Exception as e:
-        flash(f"Error refreshing library: {str(e)}", "error")
+        logger.error(f"Error refreshing library: {str(e)}")
     
-    return redirect(url_for('index'))
+    return RedirectResponse(url="/", status_code=303)
 
-
-@app.route('/video/<video_id>', methods=['GET'])
-def video_detail(video_id):
+@app.get("/video/{video_id}", response_model=VideoResponse)
+async def video_detail(video_id: str = Path(..., description="The ID of the video to retrieve")):
     """Get details for a specific video"""
     video = db.get_video(video_id=video_id)
     if not video:
-        return jsonify({'error': 'Video not found'}), 404
+        raise HTTPException(status_code=404, detail="Video not found")
     
-    # Convert to dictionary for JSON response    
-    return jsonify(video.to_dict())
+    # Convert to VideoResponse model using the class method
+    return VideoResponse.from_video(video)
 
-
-@app.route('/transcript/<video_id>')
-def view_transcript(video_id):
+@app.get("/transcript/{video_id}", response_model=Dict[str, str])
+async def view_transcript(video_id: str = Path(..., description="The ID of the video to retrieve transcript for")):
     try:
         video = db.get_video(video_id=video_id)
         
         if not video:
-            logging.error(f"Video not found in database: {video_id}")
-            return jsonify({"error": "Video not found in database"}), 404
+            logger.error(f"Video not found in database: {video_id}")
+            raise HTTPException(status_code=404, detail="Video not found in database")
         
         if not video.language:
-            logging.error(f"Language not set for video: {video_id}")
-            return jsonify({"error": "Video language not set"}), 400
+            logger.error(f"Language not set for video: {video_id}")
+            raise HTTPException(status_code=400, detail="Video language not set")
             
         transcript_path = get_file_path(video_id, 'transcript', video.language)
-        logging.info(f"Checking transcript at path: {transcript_path}")
+        logger.info(f"Checking transcript at path: {transcript_path}")
         
         if not transcript_path:
-            logging.error(f"Invalid transcript path for video: {video_id}")
-            return jsonify({"content": ""})  # Return empty content instead of error
+            logger.error(f"Invalid transcript path for video: {video_id}")
+            return {"content": ""}  # Return empty content instead of error
             
         if not os.path.exists(transcript_path):
-            logging.error(f"Transcript file not found: {transcript_path}")
-            return jsonify({"content": ""})  # Return empty content instead of error
+            logger.error(f"Transcript file not found: {transcript_path}")
+            return {"content": ""}  # Return empty content instead of error
         
         try:
             with open(transcript_path, 'r', encoding='utf-8') as f:
                 transcript_text = f.read()
             if not transcript_text.strip():
-                logging.error(f"Empty transcript file: {transcript_path}")
-                return jsonify({"content": ""})  # Return empty content
-            return jsonify({"content": transcript_text})
+                logger.error(f"Empty transcript file: {transcript_path}")
+                return {"content": ""}  # Return empty content
+            return {"content": transcript_text}
         except Exception as e:
-            logging.error(f"Error reading transcript: {str(e)}")
-            return jsonify({"content": ""})  # Return empty content instead of error
+            logger.error(f"Error reading transcript: {str(e)}")
+            return {"content": ""}  # Return empty content instead of error
     except Exception as e:
-        logging.error(f"Unexpected error in view_transcript: {str(e)}")
-        return jsonify({"content": ""})  # Return empty content instead of error
+        logger.error(f"Unexpected error in view_transcript: {str(e)}")
+        return {"content": ""}  # Return empty content instead of error
 
-
-@app.route('/summary/<video_id>')
-def view_summary(video_id):
+@app.get("/summary/{video_id}", response_model=Dict[str, str])
+async def view_summary(video_id: str = Path(..., description="The ID of the video to retrieve summary for")):
     try:
         video = db.get_video(video_id=video_id)
         
         if not video:
-            logging.error(f"Video not found in database: {video_id}")
-            return jsonify({"error": "Video not found in database"}), 404
+            logger.error(f"Video not found in database: {video_id}")
+            raise HTTPException(status_code=404, detail="Video not found in database")
             
         if not video.language:
-            logging.error(f"Language not set for video: {video_id}")
-            return jsonify({"error": "Video language not set"}), 400
+            logger.error(f"Language not set for video: {video_id}")
+            raise HTTPException(status_code=400, detail="Video language not set")
             
         summary_path = get_file_path(video_id, 'summary', video.language)
-        logging.info(f"Checking summary at path: {summary_path}")
+        logger.info(f"Checking summary at path: {summary_path}")
         
         if not summary_path:
-            logging.error(f"Invalid summary path for video: {video_id}")
-            return jsonify({"content": ""})  # Return empty content instead of error
+            logger.error(f"Invalid summary path for video: {video_id}")
+            return {"content": ""}  # Return empty content instead of error
             
         if not os.path.exists(summary_path):
-            logging.error(f"Summary file not found: {summary_path}")
-            return jsonify({"content": ""})  # Return empty content instead of error
+            logger.error(f"Summary file not found: {summary_path}")
+            return {"content": ""}  # Return empty content instead of error
         
         try:
             with open(summary_path, 'r', encoding='utf-8') as f:
                 summary_text = f.read()
             if not summary_text.strip():
-                logging.error(f"Empty summary file: {summary_path}")
-                return jsonify({"content": ""})  # Return empty content
-            return jsonify({"content": summary_text})
+                logger.error(f"Empty summary file: {summary_path}")
+                return {"content": ""}  # Return empty content
+            return {"content": summary_text}
         except Exception as e:
-            logging.error(f"Error reading summary: {str(e)}")
-            return jsonify({"content": ""})  # Return empty content instead of error
+            logger.error(f"Error reading summary: {str(e)}")
+            return {"content": ""}  # Return empty content instead of error
     except Exception as e:
-        logging.error(f"Unexpected error in view_summary: {str(e)}")
-        return jsonify({"content": ""})  # Return empty content instead of error
+        logger.error(f"Unexpected error in view_summary: {str(e)}")
+        return {"content": ""}  # Return empty content instead of error
 
-
-@app.route('/save-notes/<video_id>', methods=['POST'])
-def save_notes(video_id):
+@app.post("/save-notes/{video_id}", response_model=Dict[str, str])
+async def save_notes(video_id: str = Path(..., description="The ID of the video to save notes for"), notes_request: NotesRequest = None):
     try:
-        notes = request.json.get('notes')
+        notes = notes_request.notes if notes_request else ""
         # For now, just print the notes to verify the endpoint is working
         print(f"Saving notes for video {video_id}: {notes}")
-        return jsonify({'status': 'success', 'message': 'Notes saved successfully'})
+        return {'status': 'success', 'message': 'Notes saved successfully'}
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
-
-@app.route('/test-paths/<video_id>')
-def test_paths(video_id):
+@app.get("/test-paths/{video_id}", response_model=Dict[str, Any])
+async def test_paths(video_id: str = Path(..., description="The ID of the video to test paths for")):
     """Debug endpoint to check file paths"""
     try:
         video = db.get_video(video_id=video_id)
         if not video:
-            return jsonify({"error": "Video not found"}), 404
+            raise HTTPException(status_code=404, detail="Video not found")
             
         summary_path = get_file_path(video_id, 'summary', video.language)
-        return jsonify({
+        return {
             "video_id": video_id,
             "language": video.language,
             "summary_path": summary_path,
             "file_exists": os.path.exists(summary_path),
             "downloads_path": DOWNLOAD_DIR
-        })
+        }
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
-
-@app.route('/video-content/<video_id>')
-def video_content(video_id):
+@app.get("/video-content/{video_id}", response_model=VideoContentResponse)
+async def video_content(video_id: str = Path(..., description="The ID of the video to retrieve content for")):
     try:
         video = db.get_video(video_id=video_id)
         if not video:
-            return jsonify({
-                'transcript': {'content': ""},
-                'summary': {'content': ""}
-            }), 404
+            raise HTTPException(status_code=404, detail="Video not found")
 
         # Get transcript
         transcript_text = ""
+        transcript_error = ""
         transcript_path = get_file_path(video_id, 'transcript', video.language)
         if os.path.exists(transcript_path):
             try:
                 with open(transcript_path, 'r', encoding='utf-8') as f:
                     transcript_text = f.read()
             except Exception as e:
-                logging.error(f"Error reading transcript: {str(e)}")
-                # Keep transcript_text as empty string
+                logger.error(f"Error reading transcript: {str(e)}")
+                transcript_error = str(e)
 
         # Get summary
         summary_text = ""
+        summary_error = ""
         summary_path = get_file_path(video_id, 'summary', video.language)
         if os.path.exists(summary_path):
             try:
                 with open(summary_path, 'r', encoding='utf-8') as f:
                     summary_text = f.read()
             except Exception as e:
-                logging.error(f"Error reading summary: {str(e)}")
-                # Keep summary_text as empty string
+                logger.error(f"Error reading summary: {str(e)}")
+                summary_error = str(e)
 
-        return jsonify({
-            'transcript': {
-                'content': transcript_text,
-                'error': None  # No error message even if empty
-            },
-            'summary': {
-                'content': summary_text,
-                'error': None  # No error message even if empty
-            }
-        })
+        return VideoContentResponse.from_content(
+            transcript_text=transcript_text,
+            summary_text=summary_text,
+            transcript_error=transcript_error,
+            summary_error=summary_error
+        )
+        
     except Exception as e:
-        logging.error(f"Unexpected error in video_content: {str(e)}")
-        return jsonify({
-            'transcript': {'content': ""},
-            'summary': {'content': ""}
-        })
+        logger.error(f"Unexpected error in video_content: {str(e)}")
+        return VideoContentResponse.from_content(
+            transcript_error="Failed to load content",
+            summary_error="Failed to load content"
+        )
 
-
-@app.route('/process-video', methods=['POST'])
-def process_video(force=True, transcribe=True, process=True, summarize=True):
-    
+@app.post("/process-video", response_model=ProcessVideoResponse)
+async def process_video(request: ProcessVideoRequest):
     global config
     global transcriber
     global monitor
     global db
     global video_queue
         
-    url = request.json.get('url')
+    url = request.url
     if not url:
-        return jsonify({'error': 'No URL provided'}), 400
+        raise HTTPException(status_code=400, detail="No URL provided")
     
     try:
         # Extract video ID from URL
         video_id = extract_youtube_id(url)
         if not video_id:
-            return jsonify({'error': 'Invalid YouTube URL'}), 400
+            raise HTTPException(status_code=400, detail="Invalid YouTube URL")
         
         # Check if video is already in queue or being processed
         status = video_queue.get_status(video_id)
         if status in ['queued', 'processing']:
-            return jsonify({'success': True, 'status': status, 'video_id': video_id})
+            return ProcessVideoResponse.from_dict({
+                'success': True,
+                'status': status,
+                'video_id': video_id,
+                'title': f'Processing: {video_id}',
+                'channel': 'Loading...',
+                'upload_date': ''
+            })
         
         # Get basic video info before adding to queue
         video_info = monitor.get_video_info(video_id)
@@ -382,80 +470,67 @@ def process_video(force=True, transcribe=True, process=True, summarize=True):
             database=db,
             monitor=monitor,
             transcriber=transcriber,
-            force=force,
-            transcribe=transcribe,
-            process=process,
-            summarize=summarize,
+            force=request.force,
+            transcribe=request.transcribe,
+            process=request.process,
+            summarize=request.summarize,
             video_id=video_id,
             is_last=False
         )
 
         # Return immediately with success status and video info
-        return jsonify({
-            'success': True, 
-            'status': 'queued', 
+        return ProcessVideoResponse.from_dict({
+            'success': True,
+            'status': 'queued',
             'video_id': video_id,
             'title': video_info.get('title', f'Processing: {video_id}'),
             'channel': video_info.get('channel', 'Loading...'),
             'upload_date': video_info.get('upload_date', '')
         })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
-
-@app.route('/video-status/<video_id>', methods=['GET'])
-def video_status(video_id):
-    # Disable logging for this specific endpoint completely
-    log = logging.getLogger('werkzeug')
-    log.disabled = True
-    
-    # Re-enable logging after the request
-    @after_this_request
-    def enable_logging(response):
-        log.disabled = False
-        return response
-    
+@app.get("/video-status/{video_id}", response_model=VideoStatusResponse)
+async def video_status(video_id: str = Path(..., description="The ID of the video to check status for")):
     status = video_queue.get_status(video_id)
-    return jsonify({'status': status or 'unknown'})
+    return VideoStatusResponse.from_status(status)
 
-
-@app.route('/delete-video/<video_id>', methods=['DELETE'])
-def delete_video(video_id):
+@app.delete("/delete-video/{video_id}", response_model=DeleteVideoResponse)
+async def delete_video(video_id: str = Path(..., description="The ID of the video to delete")):
     try:
         # Use the database's delete_video method
         success = db.delete_video(video_id=video_id)
         
         if success:
-            return jsonify({'success': True})
+            return DeleteVideoResponse.from_success(True)
         else:
-            return jsonify({'error': 'Video not found'}), 404
+            raise HTTPException(status_code=404, detail="Video not found")
     
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
-
-@app.route('/config', methods=['GET'])
-def get_config():
+@app.get("/config", response_model=Dict[str, str])
+async def get_config():
     try:
         config_path = get_config_path()
         
         with open(config_path, 'r') as f:
             config_content = f.read()
         
-        return jsonify({'content': config_content})
+        return {'content': config_content}
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
-
-@app.route('/config', methods=['POST'])
-def save_config():
+@app.post("/config", response_model=Dict[str, bool])
+async def save_config(request: Request):
     try:
         global config  # Reference the global config variable
         config_path = get_config_path()
         
-        config_content = request.json.get('content')
+        config_data = await request.json()
+        config_content = config_data.get('content')
         if not config_content:
-            return jsonify({'error': 'No content provided'}), 400
+            raise HTTPException(status_code=400, detail="No content provided")
         
         # Validate JSON before saving
         try:
@@ -463,58 +538,57 @@ def save_config():
             # Update the global config variable
             config = new_config
         except json.JSONDecodeError as e:
-            return jsonify({'error': f'Invalid JSON: {str(e)}'}), 400
+            raise HTTPException(status_code=400, detail=f"Invalid JSON: {str(e)}")
         
         with open(config_path, 'w') as f:
             f.write(config_content)
         
         # Log that config was updated
-        app.logger.info("Configuration updated successfully")
+        logger.info("Configuration updated successfully")
         
-        return jsonify({'success': True})
+        return {'success': True}
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
-
-@app.route('/script/<video_id>')
-def view_script(video_id):
+@app.get("/script/{video_id}", response_model=Dict[str, str])
+async def view_script(video_id: str = Path(..., description="The ID of the video to retrieve script for")):
     try:
         video = db.get_video(video_id=video_id)
         
         if not video:
-            logging.error(f"Video not found in database: {video_id}")
-            return jsonify({"error": "Video not found in database"}), 404
+            logger.error(f"Video not found in database: {video_id}")
+            raise HTTPException(status_code=404, detail="Video not found in database")
         
         if not video.language:
-            logging.error(f"Language not set for video: {video_id}")
-            return jsonify({"error": "Video language not set"}), 400
+            logger.error(f"Language not set for video: {video_id}")
+            raise HTTPException(status_code=400, detail="Video language not set")
             
         # Construct the path to the processed.txt file
         script_path = os.path.join(DOWNLOAD_DIR, f"{video_id}.{video.language}.processed.txt")
-        logging.info(f"Checking script at path: {script_path}")
+        logger.info(f"Checking script at path: {script_path}")
         
         if not os.path.exists(script_path):
-            logging.error(f"Script file not found: {script_path}")
-            return jsonify({"content": ""})  # Return empty content instead of error
+            logger.error(f"Script file not found: {script_path}")
+            return {"content": ""}  # Return empty content instead of error
         
         try:
             with open(script_path, 'r', encoding='utf-8') as f:
                 script_text = f.read()
             if not script_text.strip():
-                logging.error(f"Empty script file: {script_path}")
-                return jsonify({"content": ""})  # Return empty content
-            return jsonify({"content": script_text})
+                logger.error(f"Empty script file: {script_path}")
+                return {"content": ""}  # Return empty content
+            return {"content": script_text}
         except Exception as e:
-            logging.error(f"Error reading script: {str(e)}")
-            return jsonify({"content": ""})  # Return empty content instead of error
+            logger.error(f"Error reading script: {str(e)}")
+            return {"content": ""}  # Return empty content instead of error
     except Exception as e:
-        logging.error(f"Unexpected error in view_script: {str(e)}")
-        return jsonify({"content": ""})  # Return empty content instead of error
-
+        logger.error(f"Unexpected error in view_script: {str(e)}")
+        return {"content": ""}  # Return empty content instead of error
 
 def main():
     import webbrowser
     from threading import Timer
+    import uvicorn
 
     def open_browser():
         webbrowser.open('http://127.0.0.1:5001/')
@@ -524,7 +598,7 @@ def main():
     
     # Ensure the worker is stopped when the app exits
     try:
-        app.run(host='0.0.0.0', port=5001, debug=True, use_reloader=False)
+        uvicorn.run(app, host="0.0.0.0", port=5001, reload=False)
     finally:
         video_queue.stop_worker()
 

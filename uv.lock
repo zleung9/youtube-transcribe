@@ -1977,6 +1977,49 @@ wheels = [
 ]
 
 [[package]]
+name = "video-curator"
+version = "1.2.3"
+source = { virtual = "." }
+dependencies = [
+    { name = "aiosmtplib" },
+    { name = "fastapi" },
+    { name = "ffmpeg-python" },
+    { name = "flask-cors" },
+    { name = "google-api-python-client" },
+    { name = "litellm" },
+    { name = "markdown" },
+    { name = "openai" },
+    { name = "openai-whisper" },
+    { name = "pytest" },
+    { name = "schedule" },
+    { name = "sqlalchemy" },
+    { name = "torch" },
+    { name = "uvicorn" },
+    { name = "webvtt-py" },
+    { name = "yt-dlp" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiosmtplib", specifier = ">=4.0.0" },
+    { name = "fastapi", specifier = ">=0.115.8" },
+    { name = "ffmpeg-python", specifier = ">=0.2.0" },
+    { name = "flask-cors", specifier = ">=5.0.1" },
+    { name = "google-api-python-client", specifier = ">=2.158.0" },
+    { name = "litellm", specifier = ">=1.58.2" },
+    { name = "markdown", specifier = ">=3.7" },
+    { name = "openai", specifier = ">=1.0.0" },
+    { name = "openai-whisper", specifier = ">=20240930" },
+    { name = "pytest", specifier = ">=8.3.4" },
+    { name = "schedule", specifier = ">=1.2.2" },
+    { name = "sqlalchemy", specifier = ">=2.0.37" },
+    { name = "torch", specifier = ">=2.5.1" },
+    { name = "uvicorn", specifier = ">=0.34.0" },
+    { name = "webvtt-py", specifier = ">=0.5.1" },
+    { name = "yt-dlp", specifier = ">=2024.12.23" },
+]
+
+[[package]]
 name = "webvtt-py"
 version = "0.5.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2073,51 +2116,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/fd/b7/4b3c7c7913a278d445cc6284e59b2e62fa25e72758f888b7a7a39eb8423f/yarl-1.18.3-cp313-cp313-win32.whl", hash = "sha256:61ee62ead9b68b9123ec24bc866cbef297dd266175d53296e2db5e7f797f902d", size = 310152 },
     { url = "https://files.pythonhosted.org/packages/f5/d5/688db678e987c3e0fb17867970700b92603cadf36c56e5fb08f23e822a0c/yarl-1.18.3-cp313-cp313-win_amd64.whl", hash = "sha256:578e281c393af575879990861823ef19d66e2b1d0098414855dd367e234f5b3c", size = 315723 },
     { url = "https://files.pythonhosted.org/packages/f5/4b/a06e0ec3d155924f77835ed2d167ebd3b211a7b0853da1cf8d8414d784ef/yarl-1.18.3-py3-none-any.whl", hash = "sha256:b57f4f58099328dfb26c6a771d09fb20dbbae81d20cfb66141251ea063bd101b", size = 45109 },
-]
-
-[[package]]
-name = "yourtube"
-version = "1.0.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "aiosmtplib" },
-    { name = "fastapi" },
-    { name = "ffmpeg-python" },
-    { name = "flask" },
-    { name = "flask-cors" },
-    { name = "google-api-python-client" },
-    { name = "litellm" },
-    { name = "markdown" },
-    { name = "openai" },
-    { name = "openai-whisper" },
-    { name = "pytest" },
-    { name = "schedule" },
-    { name = "sqlalchemy" },
-    { name = "torch" },
-    { name = "uvicorn" },
-    { name = "webvtt-py" },
-    { name = "yt-dlp" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiosmtplib", specifier = ">=4.0.0" },
-    { name = "fastapi", specifier = ">=0.115.8" },
-    { name = "ffmpeg-python", specifier = ">=0.2.0" },
-    { name = "flask", specifier = ">=3.1.0" },
-    { name = "flask-cors", specifier = ">=5.0.1" },
-    { name = "google-api-python-client", specifier = ">=2.158.0" },
-    { name = "litellm", specifier = ">=1.58.2" },
-    { name = "markdown", specifier = ">=3.7" },
-    { name = "openai", specifier = ">=1.0.0" },
-    { name = "openai-whisper", specifier = ">=20240930" },
-    { name = "pytest", specifier = ">=8.3.4" },
-    { name = "schedule", specifier = ">=1.2.2" },
-    { name = "sqlalchemy", specifier = ">=2.0.37" },
-    { name = "torch", specifier = ">=2.5.1" },
-    { name = "uvicorn", specifier = ">=0.34.0" },
-    { name = "webvtt-py", specifier = ">=0.5.1" },
-    { name = "yt-dlp", specifier = ">=2024.12.23" },
 ]
 
 [[package]]
