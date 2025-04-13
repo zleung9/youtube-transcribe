@@ -151,7 +151,7 @@ def get_db_path(path="videos.db"):
 def download_youtube_video(
         path=get_download_dir(),  # Default download path
         video_id=None, # Video ID
-        format="worst", # The video quality to download
+        format="wv+ba", # download best audio + worst video
         video=False, # weather download the actual video file
         json=True,
         subtitles=True,
