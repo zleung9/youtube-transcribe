@@ -6,6 +6,86 @@ from webvtt import WebVTT
 import litellm
 import torch
 import yt_dlp
+import logging
+
+def get_uvicorn_log_config(file_path="logs/uvicorn.log"):
+    
+    if os.path.exists(file_path):
+        os.remove(file_path)
+
+    log_config = {
+        "version": 1,
+        "disable_existing_loggers": True,
+        "formatters": {
+            "default": {
+                "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            }
+        },
+        "handlers": {
+            "default": {
+                "formatter": "default",
+                "class": "logging.FileHandler",
+                "filename": file_path
+            }
+        },
+        "loggers": {
+            "uvicorn": {
+                "handlers": ["default"],
+                "level": "INFO",
+                "propagate": False
+            },
+            "uvicorn.error": {
+                "handlers": ["default"],
+                "level": "INFO",
+                "propagate": False
+            },
+            "uvicorn.access": {
+                "handlers": ["default"],
+                "level": "INFO",
+                "propagate": False
+            }
+        }
+    }
+
+    return log_config
+    
+
+
+def create_logger(logger_name, log_path = None, append = False, simple_fmt=False):
+
+    # Configure logging
+    if not os.path.exists('logs'):
+        os.makedirs('logs')
+
+    if not append and os.path.isfile(log_path):
+        with open(log_path, 'w') as f: pass
+    # If append is False and the file exists, clear the content of the file.
+
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.INFO)
+
+    if log_path is None:
+        handler = logging.StreamHandler() # show log in console
+    else:
+        handler = logging.FileHandler(log_path) # print log in file
+    
+    if simple_fmt:
+        handler.setFormatter(
+            logging.Formatter(
+                fmt = "%(message)s"
+            )
+        )
+    else:
+        handler.setFormatter(
+            logging.Formatter(
+                fmt = '%(asctime)s %(levelname)s:  %(message)s',
+                datefmt ='%m-%d %H:%M'
+            )
+        )
+    logger.addHandler(handler)
+
+    return logger
+
 
 def extract_youtube_id(url):
     """Extract video ID from a YouTube URL. It can be a short URL, long URL, or live URL.

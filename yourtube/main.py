@@ -12,8 +12,7 @@ import time
 # global variables setup: dadtabase, monitor, transcriber, config, video_queue
 DOWNLOAD_DIR = get_download_dir()
 DB_PATH = get_db_path()
-print(f"Download directory: {DOWNLOAD_DIR}")
-print(f"Database path: {DB_PATH}")
+
 
 config =load_config() #check if config.json exists, if not create it from template
 db = Database(db_path=DB_PATH)
@@ -173,6 +172,8 @@ def process_video_pipeline(
     return 0
 
 def main():
+    print(f"Download Directory: {DOWNLOAD_DIR}")
+    print(f"Database Path: {DB_PATH}")
     
     global config, db, monitor, transcriber
 

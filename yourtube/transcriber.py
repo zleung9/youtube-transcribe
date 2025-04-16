@@ -3,14 +3,14 @@ import os
 import whisper
 import litellm
 import ffmpeg
-import logging
 from yourtube import Video
 from yourtube.utils import get_device, get_download_dir, get_llm_info
 from yourtube.prompts import prompt_summarize, prompt_process_fulltext
 
 # Configure litellm logging - fix the verbose setting
-litellm.verbose = False  # Set the verbose attribute directly
-logging.getLogger("litellm").setLevel(logging.ERROR)  # Only show ERROR level logs
+# import logging
+# litellm.verbose = False  # Set the verbose attribute directly
+# logging.getLogger("litellm").setLevel(logging.ERROR)  # Only show ERROR level logs
 
 def format_timestamp(seconds):
     """
