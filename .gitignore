@@ -17,5 +17,5 @@ videos.db*
 .pytest_cache
 .DS_Store
 .continuerules
-*.log
+*.log*
 *cookie*

@@ -111,7 +111,7 @@ class YoutubeMonitor(Monitor):
         return video_ids
 
 
-    def download(self, video_id, format='worst'):
+    def download(self, video_id, format='wv+ba'):
         '''
         Download a YouTube video using yt-dlp library.
         

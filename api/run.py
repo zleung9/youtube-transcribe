@@ -1,60 +1,50 @@
 import sys
 import os
-import logging
 import json
 import glob
-from logging.handlers import RotatingFileHandler
-from fastapi import FastAPI, Request, Response, HTTPException, Depends, Form, Query, Path
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, FileResponse
+from fastapi import FastAPI, Request, HTTPException, Query, Path
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 from yourtube import Database, Video, Transcriber
-from yourtube.utils import get_download_dir, get_db_path, get_config_path, load_config, extract_youtube_id
+from yourtube.utils import (
+    get_download_dir, 
+    get_db_path, 
+    get_config_path, 
+    load_config, 
+    extract_youtube_id, 
+    create_logger,
+    get_uvicorn_log_config
+)
 from yourtube.monitor import YoutubeMonitor
 from yourtube.main import process_video_pipeline
 from yourtube.async_worker import video_queue
 # Add the project root to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Set up file handler
+logger = create_logger("API", log_path='logs/api.log')
+logger.info('API startup')
+
+video_queue.start_worker(process_video_pipeline, logger=logger) # Start the video processing worker
+
 # global variables setup: database, monitor, transcriber, config, video_queue
 DOWNLOAD_DIR = get_download_dir()
 DB_PATH = get_db_path()
-print(f"Download directory: {DOWNLOAD_DIR}")
-print(f"Database path: {DB_PATH}")
+logger.info(f"Download Directory: {DOWNLOAD_DIR}")
+logger.info(f"Database Path: {DB_PATH}")
 
 config = load_config() #check if config.json exists, if not create it from template
 db = Database(db_path=DB_PATH)
 monitor = YoutubeMonitor(config=config)
 transcriber = Transcriber(config=config)
-video_queue.start_worker(process_video_pipeline) # Start the video processing worker
+
 
 # FastAPI app setup
 app = FastAPI(title="YourTube")
-
-# Configure logging
-if not os.path.exists('logs'):
-    os.makedirs('logs')
-
-# Set up file handler
-file_handler = RotatingFileHandler('logs/api.log', maxBytes=10240, backupCount=10)
-file_handler.setFormatter(logging.Formatter(
-    '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
-))
-file_handler.setLevel(logging.INFO)
-
-# Set up console handler
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-
-# Configure root logger
-logger = logging.getLogger()
-logger.addHandler(file_handler)
-logger.addHandler(console_handler)
-logger.setLevel(logging.INFO)
-logger.info('API startup')
 
 # Configure CORS
 app.add_middleware(
@@ -598,7 +588,7 @@ def main():
     
     # Ensure the worker is stopped when the app exits
     try:
-        uvicorn.run(app, host="0.0.0.0", port=5001, reload=False)
+        uvicorn.run(app, host="0.0.0.0", port=5001, reload=False, log_config=get_uvicorn_log_config())
     finally:
         video_queue.stop_worker()
 
