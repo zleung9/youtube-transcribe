@@ -1,0 +1,10 @@
+.github
+.venv
+.vscode
+__pycache__
+.gitignore
+*.egg-info
+dist/
+*.log
+
+tests/
